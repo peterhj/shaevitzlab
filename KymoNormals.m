@@ -1,4 +1,4 @@
-function [normals] = KymoNormals(retract, ends, poles, mask, sgh, b)
+function [normals extend] = KymoNormals(retract, ends, mask, sgh, b)
   
   normals = {};
   
@@ -17,10 +17,14 @@ function [normals] = KymoNormals(retract, ends, poles, mask, sgh, b)
 %    y = 1;
 %  end
   
-  % Nearest-neighbor sort, starting at an endpoint
+  % 2-pass path interpolation
+  % 1. Sort points by nearest neighbor and interpolate
+  % 2. Linearly extend the endpoints and interpolate
+  
+  % 1. Nearest-neighbor sort, starting at an endpoint
   x = 1; y = 2;
   [v u] = find(retract > 0);
-  num_pixels = length(u);
+  pre_pixels = length(u);
   end_u = find(u == ends(1,1));
   end_v = find(v == ends(1,2));
   end_t = intersect(end_u, end_v);
@@ -30,7 +34,7 @@ function [normals] = KymoNormals(retract, ends, poles, mask, sgh, b)
   v(1) = v(end_t);
   u(end_t) = ui;
   v(end_t) = vi;
-  for i = 2:num_pixels
+  for i = 2:pre_pixels
     % Find nearest point not already counted with 8-connectivity
     ut_above = find(u >= u(i-1)-1);
     ut_below = find(u <= u(i-1)+1);
@@ -39,8 +43,6 @@ function [normals] = KymoNormals(retract, ends, poles, mask, sgh, b)
     ut = intersect(ut_above, ut_below);
     vt = intersect(vt_above, vt_below);
     ti = intersect(ut, vt);
-%    [u(i) v(i) ti']
-%    assert length(ti) <= 2;
     t = ti(length(ti));
     ui = u(i);
     vi = v(i);
@@ -50,26 +52,92 @@ function [normals] = KymoNormals(retract, ends, poles, mask, sgh, b)
     v(t) = vi;
   end
   
-  uniform = interparc(ceil(num_pixels/15), u, v, 'linear');
-  uniform = interparc(num_pixels, uniform(:,1), uniform(:,2), 'spline');
-  udiffs = diff(uniform(:,2))./diff(uniform(:,1));
-  udiffs = [udiffs; udiffs(end)];
-  unormal = -1./udiffs;
+  uf = interparc(ceil(pre_pixels/15), u, v, 'linear');
+  uf = interparc(pre_pixels, uf(:,1), uf(:,2), 'spline');
+  df = diff(uf(:,2))./diff(uf(:,1));
+  df = [df; df(end)];
+  nm = -1./df;
   
-  uf = uniform;
-  nm = unormal;
+%  figure
+%  hold on
+%  plot(u, v);
+%  plot(uf(:,1), uf(:,2));
+%  hold off
+%  figure
+%  plot(1:pre_pixels, df);
+%  figure
+%  plot(1:pre_pixels, nm);
+  
+  % 2. Extrapolate from the ends to the poles and find the total pixel count
+  head_pt = uf(1,:);
+  tail_pt = uf(end,:);
+  head_df = uf(1,:)-uf(2,:);
+  tail_df = uf(end,:)-uf(end-1,:);
+  h_scale = 1/norm(head_df);%1/(1+(head_df(2)/head_df(1))^2);
+  t_scale = 1/norm(tail_df);%1/(1+(tail_df(2)/tail_df(1))^2);
+  
+  head_pts = [];
+  tail_pts = [];
+  head_pt = round(head_pt);
+  tail_pt = round(tail_pt);
+  last_head_pt = head_pt;
+  last_tail_pt = tail_pt;
+  [v_bound u_bound] = size(mask);
+  
+  for i = 1:20
+    pt = round(head_pt+i*h_scale*head_df);
+    if pt(2) < 1 || pt(1) < 1
+      unused = 0;
+    elseif pt(2) > v_bound || pt(1) > u_bound
+      unused = 0;
+    elseif mask(pt(2),pt(1)) > 0
+      if pt == head_pt
+        unused = 0;
+      elseif pt == last_head_pt
+        unused = 0;
+      else
+        head_pts = [pt; head_pts];
+        last_head_pt = pt;
+        retract(pt(2),pt(1)) = 1;
+      end
+    end
+    pt = round(tail_pt+i*t_scale*tail_df);
+    if pt(2) < 1 || pt(1) < 1
+      unused = 0;
+    elseif pt(2) > v_bound || pt(1) > u_bound
+      unused = 0;
+    elseif mask(pt(2),pt(1)) > 0
+      if pt == tail_pt
+        unused = 0;
+      elseif pt == last_tail_pt
+        unused = 0;
+      else
+        tail_pts = [tail_pts; pt];
+        last_tail_pt = pt;
+        retract(pt(2),pt(1)) = 1;
+      end
+    end
+  end
+  
+  u = [head_pts(:,1); u; tail_pts(:,1)];
+  v = [head_pts(:,2); v; tail_pts(:,2)];
+  num_pixels = length(u);
+  
+  uf = interparc(ceil(num_pixels/15), u, v, 'linear');
+  uf = interparc(num_pixels, uf(:,1), uf(:,2), 'spline');
+  df = diff(uf(:,2))./diff(uf(:,1));
+  df = [df; df(end)];
+  nm = -1./df;
   
   figure
   hold on
   plot(u, v);
-  plot(uniform(:,1), uniform(:,2));
+  plot(uf(:,1), uf(:,2));
   hold off
 %  figure
-%  plot(1:num_pixels, udiffs);
+%  plot(1:num_pixels, df);
 %  figure
-%  plot(1:num_pixels, unormal);
-  
-  % Extrapolate from the ends to the poles and find the total pixel count
+%  plot(1:num_pixels, nm);
   
   % Try to extend (uu,vv) to (min(u),v) and (max(u),v)
 %  du = 0.1;
@@ -130,6 +198,7 @@ function [normals] = KymoNormals(retract, ends, poles, mask, sgh, b)
 %  nm_indices = round((nm_u-uu_min)/du)+1;
 %  nm = [nm_u s1(nm_indices)'];
 %  nm = -1./nm(:,2);
+  
   for t = 1:num_pixels
     step = sqrt(1/(1+nm(t)^2));
 %    pt0 = [u(t) v(t)];
@@ -159,5 +228,7 @@ function [normals] = KymoNormals(retract, ends, poles, mask, sgh, b)
     end
     normals = [normals pts];
   end
+  
+  extend = retract;
   
 end
