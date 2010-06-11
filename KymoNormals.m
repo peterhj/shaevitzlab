@@ -17,14 +17,15 @@ function [normals extend] = KymoNormals(retract, ends, mask, sgh, b)
 %    y = 1;
 %  end
   
+  x = 1; y = 2;
+  [v u] = find(retract > 0);
+  num_pixels = length(u);
+  
   % 2-pass path interpolation
   % 1. Sort points by nearest neighbor and interpolate
   % 2. Linearly extend the endpoints and interpolate
   
   % 1. Nearest-neighbor sort, starting at an endpoint
-  x = 1; y = 2;
-  [v u] = find(retract > 0);
-  pre_pixels = length(u);
   end_u = find(u == ends(1,1));
   end_v = find(v == ends(1,2));
   end_t = intersect(end_u, end_v);
@@ -34,7 +35,7 @@ function [normals extend] = KymoNormals(retract, ends, mask, sgh, b)
   v(1) = v(end_t);
   u(end_t) = ui;
   v(end_t) = vi;
-  for i = 2:pre_pixels
+  for i = 2:num_pixels
     % Find nearest point not already counted with 8-connectivity
     ut_above = find(u >= u(i-1)-1);
     ut_below = find(u <= u(i-1)+1);
@@ -52,8 +53,8 @@ function [normals extend] = KymoNormals(retract, ends, mask, sgh, b)
     v(t) = vi;
   end
   
-  uf = interparc(ceil(pre_pixels/15), u, v, 'linear');
-  uf = interparc(pre_pixels, uf(:,1), uf(:,2), 'spline');
+  uf = interparc(ceil(num_pixels/15), u, v, 'linear');
+  uf = interparc(num_pixels, uf(:,1), uf(:,2), 'spline');
   df = diff(uf(:,2))./diff(uf(:,1));
   df = [df; df(end)];
   nm = -1./df;
@@ -64,9 +65,9 @@ function [normals extend] = KymoNormals(retract, ends, mask, sgh, b)
 %  plot(uf(:,1), uf(:,2));
 %  hold off
 %  figure
-%  plot(1:pre_pixels, df);
+%  plot(1:num_pixels, df);
 %  figure
-%  plot(1:pre_pixels, nm);
+%  plot(1:num_pixels, nm);
   
   % 2. Extrapolate from the ends to the poles and find the total pixel count
   head_pt = uf(1,:);
