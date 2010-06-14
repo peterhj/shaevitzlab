@@ -12,3 +12,53 @@ A rough description of the code structure
     that lie along the normals.
 6.  Finally we generate the kymograph by taking intensity values along the 
     normal pixels for each line over all the (sorted) frames.
+
+Some algorithm details
+
+1.  Finding the contour and retract
+
+Select a fluorescence postfix (YFP or Red); take the average over all frames 
+and perform iterative threshold. Find the contour by edge detection. Find the 
+retract by thinning; check that the retract has exactly 2 morphological 
+endpoints.
+
+It would be more precise to use the DIC images for each frame and find the 
+contour of the cell at each frame, correcting for the cell position and 
+orientation.
+
+2.  Fitting a curve to the retract
+
+In general we use a 2-pass interpolation. The first interpolation is on the 
+initial binary retract, from which we linearly extend the ends of the curve to 
+the poles of the contour. The second interpolation returns a curve across the 
+linearly extended retract.
+
+The method of interpolation is subject to immediate change. Currently, we 
+perform 2 uniform spline interpolations using interparc(). Suppose our binary 
+retract has N pixels. Then the first use of interparc() fits a spline to a 
+smaller number M of breaks; the second use uniformly samples N points of the 
+M-spline to find the final curve. It looks like this:
+
+N -> M -> N
+
+There is intentional reduction of information which is justified by the 
+following reasoning: we want the final curve to intersect each strict 4- and 8-
+connected component approximately once. This number, m, can be approximated by 
+N/b where b is some empirical constant. Then M ~ m gives us this number.
+
+The better method is to use the method of [Chartrand 2005] and minimize a 
+penalty functional to find a regularized derivative of f. The functional has an 
+L^2 part for Au-f, where u is a regularized derivative, and an L^1 part for u', 
+both over a bounded interval. The L^1 norm is adjustable by a parameter.
+
+Finally, we can use active contour to generate a spline contour around the 
+cell, and then find uniform line segments crossing the cell for the next part.
+
+3.  Mean pixel values across normal lines
+
+Using retract interpolation, we just take the diffs of the curve and find lines 
+uniform to the curve and uniformly separated. Then along each line, we round 
+the pixel coords to obtain the exact pixels in the thresholded average which we 
+then average across each line to obtain a pixel in a column of the kymograph.
+
+Weighting/interpolating pixels in each normal line is better, but not necessary.
