@@ -1,0 +1,14 @@
+A rough description of the code structure
+
+1.  Start in KymoMain, setup GUI handles and callbacks.
+2.  We load an image stack and search for images with postfix _YFP, _Red, and 
+    _DIC.
+3.  User inputs rectangular ROIs. (Could be polygons, but rectangles are easier 
+    to use.) We do thresholding to isolate the cells, then we do morphological 
+    ops to get binary contours (edges) and retracts (thinnings).
+4.  From the contours and retracts, we perform 2-pass interpolation: first to 
+    extend the retract to the contour poles, then to find the total spline.
+5.  We find the normal lines uniform along the spline and keep the pixel coords 
+    that lie along the normals.
+6.  Finally we generate the kymograph by taking intensity values along the 
+    normal pixels for each line over all the (sorted) frames.
