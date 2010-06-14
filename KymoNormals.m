@@ -1,4 +1,4 @@
-function [normals extend] = KymoNormals(retract, ends, mask, sgh, b)
+function [normals extend] = KymoNormals(retract, ends, mask, b) %sgh
   
   normals = {};
   
@@ -17,13 +17,13 @@ function [normals extend] = KymoNormals(retract, ends, mask, sgh, b)
 %    y = 1;
 %  end
   
-  x = 1; y = 2;
-  [v u] = find(retract > 0);
-  num_pixels = length(u);
-  
   % 2-pass path interpolation
   % 1. Sort points by nearest neighbor and interpolate
   % 2. Linearly extend the endpoints and interpolate
+  
+  x = 1; y = 2;
+  [v u] = find(retract > 0);
+  num_pixels = length(u);
   
   % 1. Nearest-neighbor sort, starting at an endpoint
   end_u = find(u == ends(1,1));
@@ -55,9 +55,6 @@ function [normals extend] = KymoNormals(retract, ends, mask, sgh, b)
   
   uf = interparc(ceil(num_pixels/15), u, v, 'linear');
   uf = interparc(num_pixels, uf(:,1), uf(:,2), 'spline');
-  df = diff(uf(:,2))./diff(uf(:,1));
-  df = [df; df(end)];
-  nm = -1./df;
   
 %  figure
 %  hold on
@@ -85,7 +82,7 @@ function [normals extend] = KymoNormals(retract, ends, mask, sgh, b)
   last_tail_pt = tail_pt;
   [v_bound u_bound] = size(mask);
   
-  for i = 1:20
+  for i = 1:ceil(2.5*b)
     pt = round(head_pt+i*h_scale*head_df);
     if pt(2) < 1 || pt(1) < 1
       unused = 0;

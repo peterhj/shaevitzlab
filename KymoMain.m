@@ -7,6 +7,10 @@ function varargout = KymoMain(varargin)
 
 %  Initialization tasks
 
+Parameters.MinConnectedComponents = 100;
+Parameters.SgolayHalfWindow = 10;
+Parameters.NormalHalfWindow = 8;
+
 Metadata.Directory = 0;
 Metadata.YFPFiles = 0;
 Metadata.RedFiles = 0;
@@ -14,10 +18,6 @@ Metadata.DICFiles = 0;
 Metadata.NumYFPFiles = 0;
 Metadata.NumRedFiles = 0;
 Metadata.NumDICFiles = 0;
-
-Parameters.MinConnectedComponents = 100;
-Parameters.SgolayHalfWindow = 10;
-Parameters.NormalHalfWindow = 8;
 
 ROI.N = 0; % number of regions of interest (N)
 ROI.Rects = []; % bounding rectangle
@@ -582,7 +582,7 @@ function PixelMapButton_Callback(hObject, eventdata, handles)
 %      end
 %    end
     
-    [normals extend] = KymoNormals(cell2mat(ROI.Retracts(1,i)), cell2mat(ROI.Ends(1,i)), cell2mat(ROI.Images(1,i)), Parameters.SgolayHalfWindow, Parameters.NormalHalfWindow);
+    [normals extend] = KymoNormals(cell2mat(ROI.Retracts(1,i)), cell2mat(ROI.Ends(1,i)), cell2mat(ROI.Images(1,i)), Parameters.NormalHalfWindow);
     
     UpdateOutputGraph(max(extend, cell2mat(ROI.Contours(1,i))));
     
@@ -656,7 +656,7 @@ end
 function SaveButton_Callback(hObject, eventdata, handles)
   [savefile savepath] = uiputfile();
   savefile, savepath
-  save(fullfile(savepath, savefile), 'Metadata', 'Parameters', 'ROI');
+  save(fullfile(savepath, savefile), 'Parameters', 'Metadata', 'ROI');
 end
 
 %  Utility functions
