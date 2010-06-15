@@ -1,4 +1,4 @@
-function [normals extend] = KymoNormals(retract, ends, mask, b) %sgh
+function [normals extend poles] = KymoNormals(retract, ends, mask, b) %sgh
   
   normals = {};
   
