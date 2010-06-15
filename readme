@@ -1,13 +1,14 @@
 License
 
 The plain MATLAB files and TIFF images are issued under GPLv2. Exceptions are 
-any protected MATLAB files (*.p), which are not open source code.
+any protected MATLAB files (*.p), to which we do not hold the license and 
+therefore are not open source code, but we provide them anyway for completeness 
+of functionality, without any guarantee or warranty.
 
 A rough description of the code structure
 
 1.  Start in KymoMain, setup GUI handles and callbacks.
-2.  We load an image stack and search for images with postfix _YFP, _Red, and 
-    _DIC.
+2.  We load an image stack and fetch images with postfix _YFP, _Red, and _DIC.
 3.  User inputs rectangular ROIs. (Could be polygons, but rectangles are easier 
     to use.) We do thresholding to isolate the cells, then we do morphological 
     ops to get binary contours (edges) and retracts (thinnings).
