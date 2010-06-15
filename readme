@@ -1,3 +1,10 @@
+Copyright 2010 Princeton University.
+
+License
+
+The plain MATLAB files and TIFF images are issued under GPLv2. Exceptions are 
+any protected MATLAB files (*.p), which are not open source code.
+
 A rough description of the code structure
 
 1.  Start in KymoMain, setup GUI handles and callbacks.
