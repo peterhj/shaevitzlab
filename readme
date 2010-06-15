@@ -1,9 +1,10 @@
 License
 
-The plain MATLAB files and TIFF images are issued under GPLv2. Exceptions are 
-any protected MATLAB files (*.p), to which we do not hold the license and 
-therefore are not open source code, but we provide them anyway for completeness 
-of functionality, without any guarantee or warranty.
+Original MATLAB files are licensed under the GNU GPL v2; these are labeled in 
+the files themselves. MATLAB files from the File Exchange are licensed under 
+the BSD license; these are included in the files. Image files are provided 
+without license. Protected MATLAB files (*.p) are provided only for completeness
+without any guarantee or warranty.
 
 A rough description of the code structure
 

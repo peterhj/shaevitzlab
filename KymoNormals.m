@@ -121,17 +121,19 @@ function [normals extend poles] = KymoNormals(retract, ends, mask, b) %sgh
   v = [head_pts(:,2); v; tail_pts(:,2)];
   num_pixels = length(u);
   
+  poles = [u(1) v(1); u(end) v(end)];
+  
   uf = interparc(ceil(num_pixels/15), u, v, 'linear');
   uf = interparc(num_pixels, uf(:,1), uf(:,2), 'spline');
   df = diff(uf(:,2))./diff(uf(:,1));
   df = [df; df(end)];
   nm = -1./df;
   
-  figure
-  hold on
-  plot(u, v);
-  plot(uf(:,1), uf(:,2));
-  hold off
+%  figure
+%  hold on
+%  plot(u, v);
+%  plot(uf(:,1), uf(:,2));
+%  hold off
 %  figure
 %  plot(1:num_pixels, df);
 %  figure

@@ -159,6 +159,7 @@ GUI.ContourButton = uicontrol(...
   'Position', [1080,360,80,20]);
 
 GUI.MidlineButton = uicontrol(...
+  'Visible', 'off',...
   'Parent', GUI.f,...
   'Callback', @MidlineButton_Callback,...
   'Style', 'pushbutton',...
@@ -170,7 +171,7 @@ GUI.PixelMapButton = uicontrol(...
   'Callback', @PixelMapButton_Callback,...
   'Style', 'pushbutton',...
   'String', 'Pixel Map',...
-  'Position', [1080,330,80,20]);
+  'Position', [1080,360,80,20]);
 
 GUI.Label_YFPFrames = uicontrol(...
   'Parent', GUI.f,...
@@ -438,156 +439,31 @@ end
 
 % --- 
 function MidlineButton_Callback(hObject, eventdata, handles)
-  ROI.Contours = {};
-  ROI.Retracts = {};
-  ROI.Ends = {};
-  Display.ROI = {};
-  for i = 1:ROI.N
-    this_image = cell2mat(ROI.Images(1,i));
-    
-    % get full retract
-    [contour retract ends poles] = KymoRetract(this_image);
-%    UpdateOutputGraph(max(contour, retract));
-%    UpdateOutputGraph(retract);
-%    for i = 1:m
-%      [ext(1,i),ext(2,i)]
-%      rectangle('Position', [ext(2,i),ext(1,i),1,1], 'EdgeColor', [0.5 0 0]);
-%    end
-%    for i = 1:2
-%      rectangle('Position', [ends(i,:),1,1], 'EdgeColor', [1 i/2 0]);
-%      rectangle('Position', [poles(i,:),1,1], 'EdgeColor', [0.3 i/2 0]);
-%    end
-%    Display.Contour = contour;
-%    Display.Retract = retract;
-    ROI.Contours = [ROI.Contours contour];
-    ROI.Retracts = [ROI.Retracts retract];
-    ROI.Ends = [ROI.Ends ends];
-    outline = max(contour, retract);
-    Display.ROI = [Display.ROI outline];
-    
-    % old
-%    this_image = bwmorph(this_image, 'thin', Inf);
-%    this_image = bwmorph(this_image, 'close');
-%    midline = this_image;
-%    endpoints = bwmorph(midline, 'endpoints');
-%    % Test 1 coordinate first
-%    z = size(midline); x = z(2); y = z(1);
-%    % Get a coord from the endpoints
-%    for i = 1:y
-%      for j = 1:x
-%        if endpoints(i,j) > 0
-%          coords = [i,j];
-%        end
-%      end
-%    end
-%    this_image = cell2mat(ROI.Images(1,1));
-%    this_image = edge(this_image);
-%    contour = this_image;
-%    % Find the corresponding pole on the contour
-%    norms = zeros(y,x);
-%    greatest_norm = Inf; g_coords = [Inf, Inf];
-%    for i = 1:y
-%      for j = 1:x
-%        if contour(i,j) > 0
-%          norms(i,j) = norm([i,j]-coords);
-%          if norms(i,j) < greatest_norm;
-%            greatest_norm = norms(i,j);
-%            g_coords = [j,i]; % what is the correct order?
-%          end
-%        end
-%      end
-%    end
-%    %g_coords
-%    %this_image = contour+midline;
-%    %UpdateOutputGraph(this_image);
-%    %rectangle('Position', [g_coords,1,1]);
-    
-  end
-  UpdateOutputGraph(cell2mat(Display.ROI(1,1)));
+  
 end
 
 % --- 
 function PixelMapButton_Callback(hObject, eventdata, handles)
+  ROI.Contours = {};
+  ROI.Retracts = {};
+  ROI.Ends = {};
   ROI.Poles = {};
   ROI.Extends = {};
   ROI.Normals = {};
   ROI.YFPPixelMap = {};
   ROI.RedPixelMap = {};
+  Display.ROI = {};
   for i = 1:ROI.N
-%    [retract_r retract_c] = find(cell2mat(ROI.Retracts(1,i))>0);
-%    poles = cell2mat(ROI.Poles(1,i));
-%    num_pixels = length(retract_r);
-%    dx = 0.1;
-%    h = 8;
-%    half_box = 8;
-%    [spline_x spline_y] = Spline2d([retract_c retract_r], 10);
-%    figure
-%    plot(spline_y, spline_x);
-%    % instead use splinefit
-%    try
-%      xx = 1:dx:ROI.Rects(4*i-1);
-%      xm = min(retract_r):dx:max(retract_r);
-%      coord = 2;
-%      pp = splinefit(retract_r, retract_c, 6);
-%    catch exception
-%      xx = 1:dx:ROI.Rects(4*i-2);
-%      xm = min(retract_c):dx:max(retract_c);
-%      coord = 1;
-%      pp = splinefit(retract_c, retract_r, 6);
-%    end
-%    % find derivatives with sgolay
-%    [b g] = sgolay(3, 1+2*h);
-%    curve_raw = ppval(pp, xx);
-%    curve_s0 = zeros(1, length(curve_raw)-2*h);
-%    curve_s1 = zeros(1, length(curve_raw)-2*h);
-%    curve_u = interparc(num_pixels, xx, curve_raw, 'linear');
-%    for j = 1:length(curve_raw)-2*h
-%      curve_s0(j) = dot(g(:,1), curve_raw(j:j+2*h));
-%      curve_s1(j) = dot(g(:,2), curve_raw(j:j+2*h))/dx;
-%    end
-%    length(xx)
-%    length(curve_s0)
-%    length(curve_s1)
-%    curve_uf = interparc(num_pixels, xm, curve_s0, 'linear');
-%    curve_dv = interparc(num_pixels, xm, curve_s1, 'linear');
-%    curve_nm = -1./curve_dv; % normal derivative
-    
-%    pd = polyder(pp.coefs);
-%    curve_dv = ppval(mkpp(breaks, pd, d), xx);
-%    % 'spline' slower than 'linear'
-%    curve_u = interparc(num_pixels, xx, curve_raw, 'linear');
-%    curve_dv_u = interparc(num_pixels, xx, curve_dv, 'linear');
-%    % find normal lines for each point in curve_u, take mean on line
-    
-%    for j = 1:num_pixels
-%      x = retract_c(j);
-%      y = retract_r(j);
-%      x_box = x-half_box:x+half_box;
-%      y_box = y-half_box:y+half_box;
-%      x_step = sqrt(1/(1+curve_nm(j)^2));
-%      % find nearest lattice points (pixels) along normal
-%      if x_step == 0 % if vertical line (dunno if this actually happens)
-%        y_step = 1;
-%        for k = -half_box:half_box
-%          
-%        end
-%      else
-%        for k = -ceil(1.5*half_box):ceil(1.5*half_box)
-%          % for each line point in the box, add its coordinate to the cell
-%          xn = x+k*x_step;
-%          yn = y+normal*k*x_step;
-%          [xn yn] = round([xn yn]);
-%          if ROI.Images(yn,xn) > 0
-%            ROI.Normals(i,j) = [ROI.Normals(i,j) [xn yn]];
-%          end
-%        end
-%      end
-%    end
+    % get full retract
+    [contour retract ends] = KymoRetract(cell2mat(ROI.Images(1,i)));
+    ROI.Contours = [ROI.Contours contour];
+    ROI.Retracts = [ROI.Retracts retract];
+    ROI.Ends = [ROI.Ends ends];
     
     [normals extend poles] = KymoNormals(cell2mat(ROI.Retracts(1,i)), cell2mat(ROI.Ends(1,i)), cell2mat(ROI.Images(1,i)), Parameters.NormalHalfWindow);
     ROI.Poles = [ROI.Poles poles];
-    ROI.Extends = [ROI.Extends extends];
-    outline = max(cell2mat(ROI.Contours(1,i)), extends);
+    ROI.Extends = [ROI.Extends extend];
+    outline = max(cell2mat(ROI.Contours(1,i)), extend);
     Display.ROI = [Display.ROI outline];
     
     num_pixels = length(normals);
