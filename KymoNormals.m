@@ -1,4 +1,4 @@
-function [normals extend poles] = KymoNormals(retract, ends, mask, b, breaks)
+function [normals extend poles] = KymoNormals(retract, ends, mask, b, exd, n)
   
   normals = {};
   
@@ -41,13 +41,15 @@ function [normals extend poles] = KymoNormals(retract, ends, mask, b, breaks)
   last_tail_pt = tail_pt;
   [v_bound u_bound] = size(mask);
   
-  for i = 1:ceil(2.5*b)
+  % linear increment past the ends of the retract, and check if the nearest 
+  % pixels are still in the threshold mask
+  for i = 1:2*b+exd
     pt = round(head_pt+i*h_scale*head_df);
     if pt(2) < 1 || pt(1) < 1
       unused = 0;
     elseif pt(2) > v_bound || pt(1) > u_bound
       unused = 0;
-    elseif mask(pt(2),pt(1)) > 0
+    elseif mask(pt(2),pt(1)) > 0 || i <= exd % exd is manual extension
       if pt == head_pt
         unused = 0;
       elseif pt == last_head_pt
@@ -80,10 +82,10 @@ function [normals extend poles] = KymoNormals(retract, ends, mask, b, breaks)
   v = [head_pts(:,2); v; tail_pts(:,2)];
 %  num_pixels = length(u);
   
-  if breaks == 0
+  if n == 0
     num_pixels = length(u);
   else
-    num_pixels = breaks;
+    num_pixels = n;
   end
   
   poles = [u(1) v(1); u(end) v(end)];
@@ -164,6 +166,9 @@ function [normals extend poles] = KymoNormals(retract, ends, mask, b, breaks)
 %  nm = [nm_u s1(nm_indices)'];
 %  nm = -1./nm(:,2);
   
+  % for each pixel along the extended retract, linear extend in the directions 
+  % normal to it and find the nearest-rounded pixels until we reach the edge 
+  % of the threshold mask
   for t = 1:num_pixels
     step = sqrt(1/(1+nm(t)^2));
 %    pt0 = [u(t) v(t)];

@@ -10,6 +10,8 @@ function varargout = KymoMain(varargin)
 Parameters.MinConnectedComponents = 100;
 Parameters.SgolayHalfWindow = 10;
 Parameters.NormalHalfWindow = 8;
+Parameters.Dilations = 4;
+Parameters.ExtensionLength = 15;
 
 Metadata.Directory = 0;
 Metadata.YFPFiles = 0;
@@ -29,6 +31,7 @@ ROI.Ends = {}; % head/tail inner endpoints
 ROI.Poles = {}; % poles from KymoNormals
 ROI.Extends = {}; % extended retracts from KymoNormals
 ROI.Normals = {}; % pixel coordinates for each segment; X by N cell
+ROI.NumPixels = [];
 ROI.YFPPixelMap = {};
 ROI.RedPixelMap = {};
 
@@ -188,7 +191,7 @@ set(GUI.InputSlider, 'Value', 1);
 
 %  Class methods
 
-% --- 
+% Update the active (output-side) image stack
 function UpdateStack()
   val = get(GUI.StackMenu, 'Value');
   switch val
@@ -219,7 +222,7 @@ function UpdateStack()
   set(GUI.InputSlider, 'SliderStep', [1/(Display.Num-1),10/(Display.Num-1)]);
 end
 
-% --- 
+% Update the output slider when the ROIs change
 function UpdateField()
   Display.OutputIndex = 1;
   set(GUI.OutputSlider, 'Value', 1);
@@ -234,7 +237,7 @@ function UpdateField()
   end
 end
 
-% --- 
+% Update the input graph with the current frame of the active stack
 function UpdateInputGraph()
   Display.InputImage = imread(strcat(Metadata.Directory, '/', Display.Files(Display.InputIndex).name), 'TIFF');
   axes(GUI.InputGraph);
@@ -243,13 +246,13 @@ function UpdateInputGraph()
   DisplayAllROIBorders();
 end
 
-% ---
+% Update the output graph with arbitrary image
 function UpdateOutputGraph(this_image)
   axes(GUI.OutputGraph);
   imagesc(this_image);
 end
 
-% --- 
+% Display an ROI border on the active axes
 function DisplayROIBorder(i)
   if i > 0 && i <= Display.Num
     this_rect = ROI.Rects(1,4*i-3:4*i);
@@ -265,11 +268,6 @@ function DisplayAllROIBorders()
       DisplayROIBorder(i);
     end
   end
-end
-
-% --- 
-function ResetStack()
-  
 end
 
 % --- 
@@ -377,6 +375,21 @@ end
 function ThresholdButton_Callback(hObject, eventdata, handles)
   ROI.Images = {};
   Display.ROI = {};
+  % redo average; modularize
+  val = get(GUI.StackMenu, 'Value');
+  switch val
+  case 1
+    stack_files = Metadata.YFPFiles;
+    num_files = Metadata.NumYFPFiles;
+  case 2
+    stack_files = Metadata.RedFiles;
+    num_files = Metadata.NumRedFiles;
+  end
+  Display.OutputImage = double(imread(fullfile(Metadata.Directory, stack_files(1).name), 'TIFF'));
+  for i = 2:num_files %Display.Num
+    Display.OutputImage = Display.OutputImage+double(imread(fullfile(Metadata.Directory, stack_files(i).name), 'TIFF'));
+  end
+  Display.Average = Display.OutputImage/num_files; %Display.Num;
   for i = 1:ROI.N
     this_rect = ROI.Rects(1,4*i-3:4*i);
     x = round(this_rect(1));
@@ -405,6 +418,7 @@ function PixelMapButton_Callback(hObject, eventdata, handles)
   ROI.Poles = {};
   ROI.Extends = {};
   ROI.Normals = {};
+  ROI.NumPixels = []; % only initialized here
   ROI.YFPPixelMap = {};
   ROI.RedPixelMap = {};
   Display.ROI = {};
@@ -414,7 +428,7 @@ function PixelMapButton_Callback(hObject, eventdata, handles)
     ROI.Retracts = [ROI.Retracts retract];
     ROI.Ends = [ROI.Ends ends];
     
-    [normals extend poles] = KymoNormals(cell2mat(ROI.Retracts(1,i)), cell2mat(ROI.Ends(1,i)), cell2mat(ROI.Images(1,i)), Parameters.NormalHalfWindow, 0);
+    [normals extend poles] = KymoNormals(cell2mat(ROI.Retracts(1,i)), cell2mat(ROI.Ends(1,i)), cell2mat(ROI.Images(1,i)), Parameters.NormalHalfWindow, 0, 0);
     ROI.Poles = [ROI.Poles poles];
     ROI.Extends = [ROI.Extends extend];
     
@@ -422,14 +436,27 @@ function PixelMapButton_Callback(hObject, eventdata, handles)
     Display.ROI = [Display.ROI outline];
     
     num_pixels = length(normals);
+    ROI.NumPixels = [ROI.NumPixels num_pixels];
     x = round(ROI.Rects(4*i-3));
     y = round(ROI.Rects(4*i-2));
     w = round(ROI.Rects(4*i-1));
     h = round(ROI.Rects(4*i));
     
+%    pixel_map = [];
+%    for j = 1:Metadata.NumYFPFiles
+%      this_image = imread(fullfile(Metadata.Directory, Metadata.YFPFiles(j).name), 'TIFF');
+%      pixel_col = impixel(this_image(y:y+h-1,x:x+w-1), retract_c, retract_r);
+%      [bad_r bad_c] = find(pixel_col>2500);
+%      pixel_col(bad_r,1) = mean(pixel_col(:,1));
+%      pixel_map = [pixel_map pixel_col(:,1)];
+%    end
+%    figure
+%    imagesc(pixel_map);
+%    title(strcat('YFP/GFP ROI', num2str(i)));
+    
     pixel_map = [];
     for j = 1:Metadata.NumYFPFiles
-      this_image = imread(fullfile(Metadata.Directory, Metadata.YFPFiles(j).name), 'TIFF');
+      this_image = double(imread(fullfile(Metadata.Directory, Metadata.YFPFiles(j).name), 'TIFF'));
       pixel_col = zeros(num_pixels, 1);
       for k = 1:num_pixels
         line = cell2mat(normals(1,k));
@@ -443,9 +470,21 @@ function PixelMapButton_Callback(hObject, eventdata, handles)
     title(strcat('YFP/GFP ROI', num2str(i)));
     ROI.YFPPixelMap = [ROI.YFPPixelMap pixel_map];
     
+%    pixel_map = [];
+%    for j = 1:Metadata.NumRedFiles
+%      this_image = imread(fullfile(Metadata.Directory, Metadata.RedFiles(j).name), 'TIFF');
+%      pixel_col = impixel(this_image(y:y+h-1,x:x+w-1), retract_c, retract_r);
+%      [bad_r bad_c] = find(pixel_col>2500);
+%      pixel_col(bad_r,1) = mean(pixel_col(:,1));
+%      pixel_map = [pixel_map pixel_col(:,1)];
+%    end
+%    figure
+%    imagesc(pixel_map);
+%    title(strcat('Red/mCherry ROI', num2str(i)));
+    
     pixel_map = [];
     for j = 1:Metadata.NumRedFiles
-      this_image = imread(fullfile(Metadata.Directory, Metadata.RedFiles(j).name), 'TIFF');
+      this_image = double(imread(fullfile(Metadata.Directory, Metadata.RedFiles(j).name), 'TIFF'));
       pixel_col = zeros(num_pixels, 1);
       for k = 1:num_pixels
         line = cell2mat(normals(1,k));
@@ -471,16 +510,21 @@ function DICPixelMapButton_Callback(hObject, eventdata, handles)
     h = round(ROI.Rects(4*i));
     
     pixel_map = [];
-    num_pixels = 100; % should be from threshold num_pixels
+    
+    % soon, we want to do pixelshift-minimization on columns directly using 
+    % the DIC retracts
+%    num_pixels = ROI.NumPixels(i)+2*Parameters.Dilations;
+    
+    col_pixels = [];
     
     for j = 1:Metadata.NumYFPFiles
       
       this_image = double(imread(fullfile(Metadata.Directory, Metadata.DICFiles(2*j-1).name), 'TIFF'));
       
       mask = pfdic(this_image(y:y+h-1,x:x+w-1), 0.25, 0.45);
-      mask = bwmorph(mask, 'dilate');
-      mask = bwmorph(mask, 'dilate');
-      mask = bwmorph(mask, 'dilate');
+      for k = 1:Parameters.Dilations
+        mask = bwmorph(mask, 'dilate');
+      end
       contour = edge(mask);%zeros(h,w);
       retract = bwmorph(mask, 'thin', Inf);
       
@@ -493,19 +537,36 @@ function DICPixelMapButton_Callback(hObject, eventdata, handles)
       [end_r end_c] = find(ends > 0);
       ends = [end_c end_r];
       
+%      num_pixels = round(num_pixels/2);
       this_image = double(imread(fullfile(Metadata.Directory, Metadata.YFPFiles(j).name), 'TIFF'));
-      [normals extend poles] = KymoNormals(retract, ends, mask, Parameters.NormalHalfWindow, num_pixels);
+      [normals extend poles] = KymoNormals(retract, ends, mask, Parameters.NormalHalfWindow, Parameters.ExtensionLength, 0);
+      num_pixels = length(normals);
+      col_pixels = [col_pixels num_pixels];
       pixel_col = zeros(num_pixels, 1);
       for k = 1:num_pixels
         line = cell2mat(normals(1,k));
         these_pixels = impixel(this_image(y:y+h-1,x:x+w-1), line(:,1), line(:,2));
         pixel_col(k) = mean(these_pixels(:,1));
       end
+      if j > 1
+        map_size = size(pixel_map);
+        min_length = min(map_size(1), length(pixel_col));
+        min_length
+        pixel_map = [pixel_map(1:min_length,:) pixel_col(1:min_length,:)];
+      else
+        pixel_map = [pixel_col];
+      end
       
-%      figure
-      pixel_map = [pixel_map pixel_col];
-%      imagesc(pixel_map);
+      if floor(j/10) == j/10
+        figure
+%        title(strcat(num2str(j),'/',num2str(Metadata.NumYFPFiles)));
+        imagesc(pixel_map);
+      end
     end
+    figure;
+%    title(strcat(num2str(j),'/',num2str(Metadata.NumYFPFiles)));
+    imagesc(pixel_map);
+    col_pixels
   end
 end
 
@@ -518,4 +579,4 @@ end
 
 %  Utility functions
 
-end
+ends
