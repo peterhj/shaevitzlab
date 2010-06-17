@@ -135,21 +135,21 @@ GUI.ThresholdButton = uicontrol(...
   'Callback', @ThresholdButton_Callback,...
   'Style', 'pushbutton',...
   'String', 'Threshold',...
-  'Position', [1080,380,80,20]);
+  'Position', [1080,390,80,20]);
 
 GUI.PixelMapButton = uicontrol(...
   'Parent', GUI.f,...
   'Callback', @PixelMapButton_Callback,...
   'Style', 'pushbutton',...
-  'String', 'Pixel Map',...
-  'Position', [1180,380,80,20]);
+  'String', 'Fluo. Map',...
+  'Position', [1080,360,80,20]);
 
 GUI.DICPixelMapButton = uicontrol(...
   'Parent', GUI.f,...
   'Callback', @DICPixelMapButton_Callback,...
   'Style', 'pushbutton',...
-  'String', 'DIC Pixel Map',...
-  'Position', [1080,350,180,20]);
+  'String', 'DIC Map',...
+  'Position', [1080,330,80,20]);
 
 GUI.Label_YFPFrames = uicontrol(...
   'Parent', GUI.f,...
@@ -180,7 +180,21 @@ GUI.SaveButton = uicontrol(...
   'Callback', @SaveButton_Callback,...
   'Style', 'pushbutton',...
   'String', 'Save Data',...
-  'Position', [1080,210,80,20]);
+  'Position', [1080,200,180,20]);
+
+GUI.UndockInputButton = uicontrol(...
+  'Parent', GUI.f,...
+  'Callback', @UndockInputButton_Callback,...
+  'Style', 'pushbutton',...
+  'String', 'Left Graph',...
+  'Position', [1080,160,80,20]);
+
+GUI.UndockOutputButton = uicontrol(...
+  'Parent', GUI.f,...
+  'Callback', @UndockOutputButton_Callback,...
+  'Style', 'pushbutton',...
+  'String', 'Right Graph',...
+  'Position', [1180,160,80,20]);
 
 %  Initialization tasks
 xlim(GUI.InputGraph, [0,512]);
@@ -248,8 +262,9 @@ end
 
 % Update the output graph with arbitrary image
 function UpdateOutputGraph(this_image)
+  Display.OutputImage = this_image;
   axes(GUI.OutputGraph);
-  imagesc(this_image);
+  imagesc(Display.OutputImage);
 end
 
 % Display an ROI border on the active axes
@@ -396,11 +411,12 @@ function ThresholdButton_Callback(hObject, eventdata, handles)
     y = round(this_rect(2));
     w = round(this_rect(3));
     h = round(this_rect(4));
-    this_image = KymoThreshold(Display.Average(y:y+h-1,x:x+w-1));
-    this_image = bwareaopen(this_image, Parameters.MinConnectedComponents);
-    this_image = bwmorph(this_image, 'spur');
-    this_image = bwmorph(this_image, 'majority');
-%    this_image = bwmorph(this_image, 'close');
+%    this_image = iterthresh(Display.Average(y:y+h-1,x:x+w-1));
+%    this_image = bwareaopen(this_image, Parameters.MinConnectedComponents);
+%    this_image = bwmorph(this_image, 'spur');
+%    this_image = bwmorph(this_image, 'majority');
+    this_image = threshold(Display.Average(y:y+h-1,x:x+w-1), Parameters.MinConnectedComponents);
+%    this_image = bwmorph(this_image, 'close'); % closing has bad effects
     this_image = Display.Average(y:y+h-1,x:x+w-1).*double(this_image);
 %    UpdateOutputGraph(this_image);
     ROI.Images = [ROI.Images this_image];
@@ -517,56 +533,98 @@ function DICPixelMapButton_Callback(hObject, eventdata, handles)
     
     col_pixels = [];
     
+    [contour retract ends] = KymoRetract(cell2mat(ROI.Images(1,i)));
+    [normals extend poles] = KymoNormals(retract, ends, cell2mat(ROI.Images(1,i)), Parameters.NormalHalfWindow, 0, 0);
+    
+    head_ts = [];
+    tail_ts = [];
     for j = 1:Metadata.NumYFPFiles
       
-      this_image = double(imread(fullfile(Metadata.Directory, Metadata.DICFiles(2*j-1).name), 'TIFF'));
+      scaled_image = double(imread(fullfile(Metadata.Directory, Metadata.DICFiles(2*j-1).name), 'TIFF'));
+      scaled_image = scaled_image(y:y+h-1,x:x+w-1);
       
-      mask = pfdic(this_image(y:y+h-1,x:x+w-1), 0.25, 0.45);
-      for k = 1:Parameters.Dilations
-        mask = bwmorph(mask, 'dilate');
-      end
-      contour = edge(mask);%zeros(h,w);
-      retract = bwmorph(mask, 'thin', Inf);
+      % 1. Directly find mask from DIC
+      scaled_image = scaled_image-mean2(scaled_image);
+      mask = threshold(abs(scaled_image), 50);
+%      for k = 1:8
+%        mask = bwmorph(mask, 'dilate');
+%      end
+      scaled_image = mask.*abs(scaled_image);
       
-%      figure
-%      imagesc(max(mask,2*max(contour, retract)));
-%      figure
-%      imagesc(max(contour, retract));
+%      figure;
+%      imagesc(scaled_image+4000*extend);
       
-      ends = bwmorph(retract, 'endpoints');
+      [v u] = find(extend > 0);
+      ends = bwmorph(extend, 'endpoints');
       [end_r end_c] = find(ends > 0);
-      ends = [end_c end_r];
+      [u v] = nnsort2(u, v, [end_c(1) end_r(1)]);
       
-%      num_pixels = round(num_pixels/2);
-      this_image = double(imread(fullfile(Metadata.Directory, Metadata.YFPFiles(j).name), 'TIFF'));
-      [normals extend poles] = KymoNormals(retract, ends, mask, Parameters.NormalHalfWindow, Parameters.ExtensionLength, 0);
-      num_pixels = length(normals);
+      [int_v int_u] = find(extend.*scaled_image > 0);
+      num_intersect = length(int_u);
+      assert(num_intersect >= 2);
+      t = [];
+      for k = 1:num_intersect
+        t = [t intersect(find(v == int_v(k)), find(u == int_u(k)))];
+      end
+      head_t = min(t);
+      tail_t = max(t);
+      
+%      if tail_t < 80
+%        j
+%        t
+%      end
+      
+      head_ts = [head_ts; head_t];
+      tail_ts = [tail_ts; tail_t];
+      
+%      [u(min(t)) v(min(t)); u(max(t)) v(max(t))]
+      
+%      return
+      
+      % 2. Using PFDIC code
+%      mask = pfdic(scaled_image, 0.25, 0.45);
+%      for k = 1:Parameters.Dilations
+%        mask = bwmorph(mask, 'dilate');
+%      end
+%      contour = edge(mask);%zeros(h,w);
+%      retract = bwmorph(mask, 'thin', Inf);
+%      ends = bwmorph(retract, 'endpoints');
+%      [end_r end_c] = find(ends > 0);
+%      ends = [end_c end_r];
+      
+      scaled_image = double(imread(fullfile(Metadata.Directory, Metadata.YFPFiles(j).name), 'TIFF'));
+      scaled_image = scaled_image(y:y+h-1,x:x+w-1);
+      
+%      [normals extend poles] = KymoNormals(retract, ends, mask, Parameters.NormalHalfWindow, Parameters.ExtensionLength, 0);
+%      num_pixels = length(normals);
+      num_pixels = tail_t-head_t+1;
       col_pixels = [col_pixels num_pixels];
-      pixel_col = zeros(num_pixels, 1);
-      for k = 1:num_pixels
+%      pixel_col = zeros(num_pixels, 1);
+      pixel_col = 600*ones(100, 1);
+      for k = head_t:tail_t % 1:num_pixels
         line = cell2mat(normals(1,k));
-        these_pixels = impixel(this_image(y:y+h-1,x:x+w-1), line(:,1), line(:,2));
-        pixel_col(k) = mean(these_pixels(:,1));
+        line_pixels = impixel(scaled_image, line(:,1), line(:,2));
+        pixel_col(k-head_t+1) = mean(line_pixels(:,1));
       end
       if j > 1
         map_size = size(pixel_map);
         min_length = min(map_size(1), length(pixel_col));
-        min_length
         pixel_map = [pixel_map(1:min_length,:) pixel_col(1:min_length,:)];
       else
         pixel_map = [pixel_col];
       end
       
-      if floor(j/10) == j/10
-        figure
-%        title(strcat(num2str(j),'/',num2str(Metadata.NumYFPFiles)));
-        imagesc(pixel_map);
-      end
+%      if floor(j/10) == j/10
+%        figure
+%        imagesc(pixel_map);
+%      end
     end
+%    head_ts
+%    tail_ts
+    
     figure;
-%    title(strcat(num2str(j),'/',num2str(Metadata.NumYFPFiles)));
     imagesc(pixel_map);
-    col_pixels
+    col_pixels, min(col_pixels)
   end
 end
 
@@ -575,6 +633,18 @@ function SaveButton_Callback(hObject, eventdata, handles)
   [savefile savepath] = uiputfile();
   savefile, savepath
   save(fullfile(savepath, savefile), 'Parameters', 'Metadata', 'ROI');
+end
+
+% --- 
+function UndockInputButton_Callback(hObject, eventdata, handles)
+  figure;
+  imagesc(Display.InputImage);
+end
+
+% --- 
+function UndockOutputButton_Callback(hObject, eventdata, handles)
+  figure;
+  imagesc(Display.OutputImage);
 end
 
 %  Utility functions

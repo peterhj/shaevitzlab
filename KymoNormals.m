@@ -49,7 +49,7 @@ function [normals extend poles] = KymoNormals(retract, ends, mask, b, exd, n)
       unused = 0;
     elseif pt(2) > v_bound || pt(1) > u_bound
       unused = 0;
-    elseif mask(pt(2),pt(1)) > 0 || i <= exd % exd is manual extension
+    elseif mask(pt(2),pt(1)) > 0 || i <= exd
       if pt == head_pt
         unused = 0;
       elseif pt == last_head_pt
@@ -65,7 +65,7 @@ function [normals extend poles] = KymoNormals(retract, ends, mask, b, exd, n)
       unused = 0;
     elseif pt(2) > v_bound || pt(1) > u_bound
       unused = 0;
-    elseif mask(pt(2),pt(1)) > 0
+    elseif mask(pt(2),pt(1)) > 0 || i <= exd
       if pt == tail_pt
         unused = 0;
       elseif pt == last_tail_pt
