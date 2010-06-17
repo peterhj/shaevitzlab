@@ -127,51 +127,26 @@ GUI.CropButton = uicontrol(...
   'String', 'Add ROI',...
   'Position', [1080,420,80,20]);
 
-GUI.ExtendROIButton = uicontrol(...
-  'Visible', 'off',...
-  'Parent', GUI.f,...
-  'Callback', @ExtendROIButton_Callback,...
-  'Style', 'pushbutton',...
-  'String', 'Extend ROI',...
-  'Position', [1180,420,80,20]);
-
-GUI.ResetROIButton = uicontrol(...
-  'Visible', 'off',...
-  'Parent', GUI.f,...
-  'Callback', @ResetROIButton_Callback,...
-  'Style', 'pushbutton',...
-  'String', 'Reset ROI',...
-  'Position', [1180,420,80,20]);
-
 GUI.ThresholdButton = uicontrol(...
   'Parent', GUI.f,...
   'Callback', @ThresholdButton_Callback,...
   'Style', 'pushbutton',...
   'String', 'Threshold',...
-  'Position', [1080,390,80,20]);
-
-GUI.ContourButton = uicontrol(...
-  'Visible', 'off',...
-  'Parent', GUI.f,...
-  'Callback', @ContourButton_Callback,...
-  'Style', 'pushbutton',...
-  'String', 'Contour',...
-  'Position', [1080,360,80,20]);
-
-GUI.MidlineButton = uicontrol(...
-  'Visible', 'off',...
-  'Parent', GUI.f,...
-  'Callback', @MidlineButton_Callback,...
-  'Style', 'pushbutton',...
-  'String', 'Centerline',...
-  'Position', [1080,360,80,20]);
+  'Position', [1080,380,80,20]);
 
 GUI.PixelMapButton = uicontrol(...
   'Parent', GUI.f,...
   'Callback', @PixelMapButton_Callback,...
   'Style', 'pushbutton',...
   'String', 'Pixel Map',...
-  'Position', [1080,360,80,20]);
+  'Position', [1180,380,80,20]);
+
+GUI.DICPixelMapButton = uicontrol(...
+  'Parent', GUI.f,...
+  'Callback', @DICPixelMapButton_Callback,...
+  'Style', 'pushbutton',...
+  'String', 'DIC Pixel Map',...
+  'Position', [1080,350,180,20]);
 
 GUI.Label_YFPFrames = uicontrol(...
   'Parent', GUI.f,...
@@ -398,16 +373,6 @@ function CropButton_Callback(hObject, eventdata, handles)
   UpdateInputGraph();
 end
 
-% --- 
-function ExtendROIButton_Callback(hObject, eventdata, handles)
-  
-end
-
-% --- 
-function ResetROIButton_Callback(hObject, eventdata, handles)
-  
-end
-
 % --- Perform simple threshold on current frame
 function ThresholdButton_Callback(hObject, eventdata, handles)
   ROI.Images = {};
@@ -433,16 +398,6 @@ function ThresholdButton_Callback(hObject, eventdata, handles)
 end
 
 % --- 
-function ContourButton_Callback(hObject, eventdata, handles)
-  
-end
-
-% --- 
-function MidlineButton_Callback(hObject, eventdata, handles)
-  
-end
-
-% --- 
 function PixelMapButton_Callback(hObject, eventdata, handles)
   ROI.Contours = {};
   ROI.Retracts = {};
@@ -454,15 +409,15 @@ function PixelMapButton_Callback(hObject, eventdata, handles)
   ROI.RedPixelMap = {};
   Display.ROI = {};
   for i = 1:ROI.N
-    % get full retract
     [contour retract ends] = KymoRetract(cell2mat(ROI.Images(1,i)));
     ROI.Contours = [ROI.Contours contour];
     ROI.Retracts = [ROI.Retracts retract];
     ROI.Ends = [ROI.Ends ends];
     
-    [normals extend poles] = KymoNormals(cell2mat(ROI.Retracts(1,i)), cell2mat(ROI.Ends(1,i)), cell2mat(ROI.Images(1,i)), Parameters.NormalHalfWindow);
+    [normals extend poles] = KymoNormals(cell2mat(ROI.Retracts(1,i)), cell2mat(ROI.Ends(1,i)), cell2mat(ROI.Images(1,i)), Parameters.NormalHalfWindow, 0);
     ROI.Poles = [ROI.Poles poles];
     ROI.Extends = [ROI.Extends extend];
+    
     outline = max(cell2mat(ROI.Contours(1,i)), extend);
     Display.ROI = [Display.ROI outline];
     
@@ -472,17 +427,6 @@ function PixelMapButton_Callback(hObject, eventdata, handles)
     w = round(ROI.Rects(4*i-1));
     h = round(ROI.Rects(4*i));
     
-%    pixel_map = [];
-%    for j = 1:Metadata.NumYFPFiles
-%      this_image = imread(fullfile(Metadata.Directory, Metadata.YFPFiles(j).name), 'TIFF');
-%      pixel_col = impixel(this_image(y:y+h-1,x:x+w-1), retract_c, retract_r);
-%      [bad_r bad_c] = find(pixel_col>2500);
-%      pixel_col(bad_r,1) = mean(pixel_col(:,1));
-%      pixel_map = [pixel_map pixel_col(:,1)];
-%    end
-%    figure
-%    imagesc(pixel_map);
-%    title(strcat('YFP/GFP ROI', num2str(i)));
     pixel_map = [];
     for j = 1:Metadata.NumYFPFiles
       this_image = imread(fullfile(Metadata.Directory, Metadata.YFPFiles(j).name), 'TIFF');
@@ -498,17 +442,7 @@ function PixelMapButton_Callback(hObject, eventdata, handles)
     imagesc(pixel_map);
     title(strcat('YFP/GFP ROI', num2str(i)));
     ROI.YFPPixelMap = [ROI.YFPPixelMap pixel_map];
-%    pixel_map = [];
-%    for j = 1:Metadata.NumRedFiles
-%      this_image = imread(fullfile(Metadata.Directory, Metadata.RedFiles(j).name), 'TIFF');
-%      pixel_col = impixel(this_image(y:y+h-1,x:x+w-1), retract_c, retract_r);
-%      [bad_r bad_c] = find(pixel_col>2500);
-%      pixel_col(bad_r,1) = mean(pixel_col(:,1));
-%      pixel_map = [pixel_map pixel_col(:,1)];
-%    end
-%    figure
-%    imagesc(pixel_map);
-%    title(strcat('Red/mCherry ROI', num2str(i)));
+    
     pixel_map = [];
     for j = 1:Metadata.NumRedFiles
       this_image = imread(fullfile(Metadata.Directory, Metadata.RedFiles(j).name), 'TIFF');
@@ -526,6 +460,53 @@ function PixelMapButton_Callback(hObject, eventdata, handles)
     ROI.RedPixelMap = [ROI.RedPixelMap pixel_map];
   end
   UpdateOutputGraph(cell2mat(Display.ROI(1,1)));
+end
+
+% --- 
+function DICPixelMapButton_Callback(hObject, eventdata, handles)
+  for i = 1:ROI.N
+    x = round(ROI.Rects(4*i-3));
+    y = round(ROI.Rects(4*i-2));
+    w = round(ROI.Rects(4*i-1));
+    h = round(ROI.Rects(4*i));
+    
+    pixel_map = [];
+    num_pixels = 100; % should be from threshold num_pixels
+    
+    for j = 1:Metadata.NumYFPFiles
+      
+      this_image = double(imread(fullfile(Metadata.Directory, Metadata.DICFiles(2*j-1).name), 'TIFF'));
+      
+      mask = pfdic(this_image(y:y+h-1,x:x+w-1), 0.25, 0.45);
+      mask = bwmorph(mask, 'dilate');
+      mask = bwmorph(mask, 'dilate');
+      mask = bwmorph(mask, 'dilate');
+      contour = edge(mask);%zeros(h,w);
+      retract = bwmorph(mask, 'thin', Inf);
+      
+%      figure
+%      imagesc(max(mask,2*max(contour, retract)));
+%      figure
+%      imagesc(max(contour, retract));
+      
+      ends = bwmorph(retract, 'endpoints');
+      [end_r end_c] = find(ends > 0);
+      ends = [end_c end_r];
+      
+      this_image = double(imread(fullfile(Metadata.Directory, Metadata.YFPFiles(j).name), 'TIFF'));
+      [normals extend poles] = KymoNormals(retract, ends, mask, Parameters.NormalHalfWindow, num_pixels);
+      pixel_col = zeros(num_pixels, 1);
+      for k = 1:num_pixels
+        line = cell2mat(normals(1,k));
+        these_pixels = impixel(this_image(y:y+h-1,x:x+w-1), line(:,1), line(:,2));
+        pixel_col(k) = mean(these_pixels(:,1));
+      end
+      
+%      figure
+      pixel_map = [pixel_map pixel_col];
+%      imagesc(pixel_map);
+    end
+  end
 end
 
 % --- 

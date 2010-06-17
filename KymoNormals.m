@@ -1,21 +1,6 @@
-function [normals extend poles] = KymoNormals(retract, ends, mask, b) %sgh
+function [normals extend poles] = KymoNormals(retract, ends, mask, b, breaks)
   
   normals = {};
-  
-  % Quick and dirty, canonical (u,v) coordinates
-%  [ry rx] = find(retract > 0);
-%  [unused freq] = mode(ry);
-%  if max(freq) > 1
-%    u = rx;
-%    v = ry;
-%    x = 1;
-%    y = 2;
-%  else
-%    u = ry;
-%    v = rx;
-%    x = 2;
-%    y = 1;
-%  end
   
   % 2-pass path interpolation
   % 1. Sort points by nearest neighbor and interpolate
@@ -26,33 +11,7 @@ function [normals extend poles] = KymoNormals(retract, ends, mask, b) %sgh
   num_pixels = length(u);
   
   % 1. Nearest-neighbor sort, starting at an endpoint
-  end_u = find(u == ends(1,1));
-  end_v = find(v == ends(1,2));
-  end_t = intersect(end_u, end_v);
-  ui = u(1);
-  vi = v(1);
-  u(1) = u(end_t);
-  v(1) = v(end_t);
-  u(end_t) = ui;
-  v(end_t) = vi;
-  for i = 2:num_pixels
-    % Find nearest point not already counted with 8-connectivity
-    ut_above = find(u >= u(i-1)-1);
-    ut_below = find(u <= u(i-1)+1);
-    vt_above = find(v >= v(i-1)-1);
-    vt_below = find(v <= v(i-1)+1);
-    ut = intersect(ut_above, ut_below);
-    vt = intersect(vt_above, vt_below);
-    ti = intersect(ut, vt);
-    t = ti(length(ti));
-    ui = u(i);
-    vi = v(i);
-    u(i) = u(t);
-    v(i) = v(t);
-    u(t) = ui;
-    v(t) = vi;
-  end
-  
+  [u v] = nnsort2(u, v, ends(1,:));
   uf = interparc(ceil(num_pixels/15), u, v, 'linear');
   uf = interparc(num_pixels, uf(:,1), uf(:,2), 'spline');
   
@@ -119,7 +78,13 @@ function [normals extend poles] = KymoNormals(retract, ends, mask, b) %sgh
   
   u = [head_pts(:,1); u; tail_pts(:,1)];
   v = [head_pts(:,2); v; tail_pts(:,2)];
-  num_pixels = length(u);
+%  num_pixels = length(u);
+  
+  if breaks == 0
+    num_pixels = length(u);
+  else
+    num_pixels = breaks;
+  end
   
   poles = [u(1) v(1); u(end) v(end)];
   
