@@ -24,7 +24,7 @@
 % 
 % v1.0 16-June-2010
 
-function [normals extend poles] = KymoNormals(retract, ends, mask, b, exd, n)
+function [normals extend poles] = KymoNormals(retract, ends, mask, b, exd)
 % KymoNormals returns [...]
 %
 % [normals extend poles] = KymoNormals(retract, ends, mask, b, exd, n)
@@ -70,8 +70,8 @@ function [normals extend poles] = KymoNormals(retract, ends, mask, b, exd, n)
   tail_pt = uf(end,:);
   head_df = uf(1,:)-uf(2,:);
   tail_df = uf(end,:)-uf(end-1,:);
-  h_scale = 1/norm(head_df);%1/(1+(head_df(2)/head_df(1))^2);
-  t_scale = 1/norm(tail_df);%1/(1+(tail_df(2)/tail_df(1))^2);
+  head_step = head_df/norm(head_df);%1/(1+(head_df(2)/head_df(1))^2);
+  tail_step = tail_df/norm(tail_df);%1/(1+(tail_df(2)/tail_df(1))^2);
   
   head_pts = [];
   tail_pts = [];
@@ -84,7 +84,7 @@ function [normals extend poles] = KymoNormals(retract, ends, mask, b, exd, n)
   % linear increment past the ends of the retract, and check if the nearest 
   % pixels are still in the threshold mask
   for i = 1:2*b+exd
-    pt = round(head_pt+i*h_scale*head_df);
+    pt = round(head_pt+i*head_step);
     if pt(2) < 1 || pt(1) < 1
       unused = 0;
     elseif pt(2) > v_bound || pt(1) > u_bound
@@ -100,7 +100,7 @@ function [normals extend poles] = KymoNormals(retract, ends, mask, b, exd, n)
         retract(pt(2),pt(1)) = 1;
       end
     end
-    pt = round(tail_pt+i*t_scale*tail_df);
+    pt = round(tail_pt+i*tail_step);
     if pt(2) < 1 || pt(1) < 1
       unused = 0;
     elseif pt(2) > v_bound || pt(1) > u_bound
@@ -120,13 +120,13 @@ function [normals extend poles] = KymoNormals(retract, ends, mask, b, exd, n)
   
   u = [head_pts(:,1); u; tail_pts(:,1)];
   v = [head_pts(:,2); v; tail_pts(:,2)];
-%  num_pixels = length(u);
+  num_pixels = length(u);
   
-  if n == 0
-    num_pixels = length(u);
-  else
-    num_pixels = n;
-  end
+%  if n == 0
+%    num_pixels = length(u);
+%  else
+%    num_pixels = n;
+%  end
   
   poles = [u(1) v(1); u(end) v(end)];
   

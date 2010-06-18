@@ -464,7 +464,7 @@ function PixelMapButton_Callback(hObject, eventdata, handles)
     ROI.Retracts = [ROI.Retracts retract];
     ROI.Ends = [ROI.Ends ends];
     
-    [normals extend poles] = KymoNormals(cell2mat(ROI.Retracts(1,i)), cell2mat(ROI.Ends(1,i)), cell2mat(ROI.Images(1,i)), Parameters.NormalHalfWindow, 0, 0);
+    [normals extend poles] = KymoNormals(cell2mat(ROI.Retracts(1,i)), cell2mat(ROI.Ends(1,i)), cell2mat(ROI.Images(1,i)), Parameters.NormalHalfWindow, 0);
     ROI.Poles = [ROI.Poles poles];
     ROI.Extends = [ROI.Extends extend];
     
@@ -554,18 +554,19 @@ function DICPixelMapButton_Callback(hObject, eventdata, handles)
     col_pixels = [];
     
     [contour retract ends] = KymoRetract(cell2mat(ROI.Images(1,i)));
-    [normals extend poles] = KymoNormals(retract, ends, cell2mat(ROI.Images(1,i)), Parameters.NormalHalfWindow, 0, 0);
+    [normals extend poles] = KymoNormals(retract, ends, cell2mat(ROI.Images(1,i)), Parameters.NormalHalfWindow, 0);
     
-    head_ts = [];
-    tail_ts = [];
+%    head_ts = [];
+%    tail_ts = [];
     for j = 1:Metadata.NumYFPFiles
       
       scaled_image = double(imread(fullfile(Metadata.Directory, Metadata.DICFiles(2*j-1).name), 'TIFF'));
       scaled_image = scaled_image(y:y+h-1,x:x+w-1);
       
-      % 1. Directly find mask from DIC
+      % directly find mask from DIC
       scaled_image = scaled_image-mean2(scaled_image);
       mask = threshold(abs(scaled_image), 50);
+      scaled_image = mask.*abs(scaled_image);
       % find points near the poles
       ends = bwmorph(mask, 'thin', Inf);
       ends = bwmorph(ends, 'endpoints', Inf);
@@ -580,11 +581,11 @@ function DICPixelMapButton_Callback(hObject, eventdata, handles)
       
       j
       
+      % coarse approximation of the DIC poles
       [v u] = find(extend > 0);
       ends = bwmorph(extend, 'endpoints');
       [end_r end_c] = find(ends > 0);
       [u v] = nnsort2(u, v, [end_c(1) end_r(1)]);
-      
       [int_v int_u] = find(extend.*mask > 0);
       num_intersect = length(int_u);
       assert(num_intersect >= 2);
@@ -595,20 +596,42 @@ function DICPixelMapButton_Callback(hObject, eventdata, handles)
       head_t = min(t);
       tail_t = max(t);
       
+      % finer approximation of the DIC poles
+%      if head_t > 1
+%        for k = head_t-1:-1:max(1, head_t-10)
+%          line = cell2mat(normals(1,k));
+%          [lv lu] = find(scaled_image(line(:,2),line(:,1)) > 0);
+%          this_len = length(lu);
+%          if this_len == 0
+%            head_t = k+1;
+%          end
+%        end
+%      end
+%      if tail_t < length(u)
+%        for k = tail_t+1:min(length(u), tail_t+10)
+%          line = cell2mat(normals(1,k));
+%          [lv lu] = find(scaled_image(line(:,2),line(:,1)) > 0);
+%          this_len = length(lu);
+%          if this_len == 0
+%            tail_t = k-1;
+%          end
+%        end
+%      end
+      
       if tail_t-head_t < 82
         figure;
-        imagesc(mask.*abs(scaled_image)+4000*extend);
+        imagesc(scaled_image+4000*extend);
         title(num2str(j));
       end
       
-      head_ts = [head_ts; head_t];
-      tail_ts = [tail_ts; tail_t];
+%      head_ts = [head_ts; head_t];
+%      tail_ts = [tail_ts; tail_t];
       
 %      [u(min(t)) v(min(t)); u(max(t)) v(max(t))]
       
 %      return
       
-      % 2. Using PFDIC code
+      % using PFDIC code
 %      mask = pfdic(scaled_image, 0.25, 0.45);
 %      for k = 1:Parameters.Dilations
 %        mask = bwmorph(mask, 'dilate');
@@ -622,7 +645,7 @@ function DICPixelMapButton_Callback(hObject, eventdata, handles)
       scaled_image = double(imread(fullfile(Metadata.Directory, Metadata.YFPFiles(j).name), 'TIFF'));
       scaled_image = scaled_image(y:y+h-1,x:x+w-1);
       
-%      [normals extend poles] = KymoNormals(retract, ends, mask, Parameters.NormalHalfWindow, Parameters.ExtensionLength, 0);
+%      [normals extend poles] = KymoNormals(retract, ends, mask, Parameters.NormalHalfWindow, Parameters.ExtensionLength);
 %      num_pixels = length(normals);
       num_pixels = tail_t-head_t+1;
       col_pixels = [col_pixels num_pixels];
