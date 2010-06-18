@@ -1,4 +1,3 @@
-function [normals extend poles] = KymoNormals(retract, ends, mask, b, exd, n)
 % Copyright (C) 2010, Peter Jin and Mingzhai Sun
 % 
 % This program is free software; you can redistribute it and/or
@@ -24,11 +23,11 @@ function [normals extend poles] = KymoNormals(retract, ends, mask, b, exd, n)
 % mingzhai@gmail.com
 % 
 % v1.0 16-June-2010
-% 
-% KymoRetract returns the contour, center line, ends of the center line
-% and the poles of the contour of the input image. 
+
+function [normals extend poles] = KymoNormals(retract, ends, mask, b, exd, n)
+% KymoNormals returns [...]
 %
-% [contour, retract, ends, poles] = KymoRetract(the_image)
+% [normals extend poles] = KymoNormals(retract, ends, mask, b, exd, n)
 %
 % Inputs: retract - binary image with all centerline pixel values of 1 and
 %           all others zeros. 
@@ -38,9 +37,8 @@ function [normals extend poles] = KymoNormals(retract, ends, mask, b, exd, n)
 %
 % Outputs: normals - contour of the input image
 %          extend - the center line of the image 
-%          
-% Algorithm: Just use morphological operation to get the contour, 
-% centerline and ends. So far the poles are not working. 
+% 
+% Algorithm: [...]
   
   normals = {};
   
@@ -57,7 +55,7 @@ function [normals extend poles] = KymoNormals(retract, ends, mask, b, exd, n)
   uf = interparc(ceil(num_pixels/15), u, v, 'linear');
   uf = interparc(num_pixels, uf(:,1), uf(:,2), 'spline');
   
-%  figure
+%  figure % compare (sorted) original with interpolated curve
 %  hold on
 %  plot(u, v);
 %  plot(uf(:,1), uf(:,2));

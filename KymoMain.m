@@ -1,4 +1,3 @@
-function varargout = KymoMain(varargin)
 % Copyright (C) 2010, Peter Jin and Mingzhai Sun
 % 
 % This program is free software; you can redistribute it and/or
@@ -24,6 +23,8 @@ function varargout = KymoMain(varargin)
 % mingzhai@gmail.com
 % 
 % v1.0 16-June-2010
+
+function varargout = KymoMain(varargin)
 
 %  Initialization tasks
 
@@ -565,20 +566,26 @@ function DICPixelMapButton_Callback(hObject, eventdata, handles)
       % 1. Directly find mask from DIC
       scaled_image = scaled_image-mean2(scaled_image);
       mask = threshold(abs(scaled_image), 50);
-%      for k = 1:8
+      % find points near the poles
+      ends = bwmorph(mask, 'thin', Inf);
+      ends = bwmorph(ends, 'endpoints', Inf);
+      [end_v end_u] = find(ends > 0);
+      for k = 1:length(end_u)
+        mask = localclose(mask, [end_u(k) end_v(k)], 15);
+      end
+%      for k = 1:2
 %        mask = bwmorph(mask, 'dilate');
 %      end
-      scaled_image = mask.*abs(scaled_image);
+%      scaled_image = mask.*abs(scaled_image);
       
-%      figure;
-%      imagesc(scaled_image+4000*extend);
+      j
       
       [v u] = find(extend > 0);
       ends = bwmorph(extend, 'endpoints');
       [end_r end_c] = find(ends > 0);
       [u v] = nnsort2(u, v, [end_c(1) end_r(1)]);
       
-      [int_v int_u] = find(extend.*scaled_image > 0);
+      [int_v int_u] = find(extend.*mask > 0);
       num_intersect = length(int_u);
       assert(num_intersect >= 2);
       t = [];
@@ -588,10 +595,11 @@ function DICPixelMapButton_Callback(hObject, eventdata, handles)
       head_t = min(t);
       tail_t = max(t);
       
-%      if tail_t < 80
-%        j
-%        t
-%      end
+      if tail_t-head_t < 82
+        figure;
+        imagesc(mask.*abs(scaled_image)+4000*extend);
+        title(num2str(j));
+      end
       
       head_ts = [head_ts; head_t];
       tail_ts = [tail_ts; tail_t];

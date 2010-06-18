@@ -1,4 +1,3 @@
-function [contour retract ends] = KymoRetract(the_image)
 % Copyright (C) 2010, Peter Jin and Mingzhai Sun
 % 
 % This program is free software; you can redistribute it and/or
@@ -24,7 +23,8 @@ function [contour retract ends] = KymoRetract(the_image)
 % mingzhai@gmail.com
 % 
 % v1.0 16-June-2010
-% 
+
+function [contour retract ends] = KymoRetract(the_image)
 % KymoRetract returns the contour, center line, ends of the center line
 % and the poles of the contour of the input image. 
 %
@@ -38,7 +38,7 @@ function [contour retract ends] = KymoRetract(the_image)
 %          poles - the poles on the contour. At this moment this is not
 %            working.
 % Algorithm: Just use morphological operation to get the contour, 
-% centerline and ends. So far the poles are not working. 
+% centerline and ends. So far the poles are not working (see KymoNormals).
   
   % Get morphological objects
   contour = edge(the_image);
