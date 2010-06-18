@@ -381,9 +381,6 @@ function AverageButton_Callback(hObject, eventdata, handles)
     Display.OutputImage = double(imread(fullfile(Metadata.Directory, Display.Files(1).name), 'TIFF'));
     for i = 2:Display.Num
       Display.OutputImage = Display.OutputImage+double(imread(fullfile(Metadata.Directory, Display.Files(i).name), 'TIFF'));
-%      imagesc(Display.OutputImage);
-%      drawnow;
-%      pause(1/30);
     end
     Display.Average = Display.OutputImage/Display.Num;
     Display.ROI = [Display.ROI Display.Average];
@@ -432,13 +429,8 @@ function ThresholdButton_Callback(hObject, eventdata, handles)
     y = round(this_rect(2));
     w = round(this_rect(3));
     h = round(this_rect(4));
-%    this_image = iterthresh(Display.Average(y:y+h-1,x:x+w-1));
-%    this_image = bwareaopen(this_image, Parameters.MinConnectedComponents);
-%    this_image = bwmorph(this_image, 'spur');
-%    this_image = bwmorph(this_image, 'majority');
     this_image = threshold(Display.Average(y:y+h-1,x:x+w-1), Parameters.MinConnectedComponents);
     this_image = Display.Average(y:y+h-1,x:x+w-1).*double(this_image);
-%    UpdateOutputGraph(this_image);
     ROI.Images = [ROI.Images this_image];
   end
   Display.ROI = [Display.ROI ROI.Images];
@@ -546,11 +538,6 @@ function DICPixelMapButton_Callback(hObject, eventdata, handles)
     h = round(ROI.Rects(4*i));
     
     pixel_map = [];
-    
-    % soon, we want to do pixelshift-minimization on columns directly using 
-    % the DIC retracts
-%    num_pixels = ROI.NumPixels(i)+2*Parameters.Dilations;
-    
     col_pixels = [];
     
     [contour retract ends] = KymoRetract(cell2mat(ROI.Images(1,i)));
@@ -567,6 +554,7 @@ function DICPixelMapButton_Callback(hObject, eventdata, handles)
       % find and locally close mask from DIC
       scaled_image = abs(scaled_image-mean2(scaled_image));
       mask = threshold(scaled_image, 50);
+      
       % find points near the poles
       ends = bwmorph(mask, 'thin', Inf);
       ends = bwmorph(ends, 'endpoints', Inf);
@@ -643,24 +631,9 @@ function DICPixelMapButton_Callback(hObject, eventdata, handles)
 %        title(num2str(j));
 %      end
       
-%      [u(min(t)) v(min(t)); u(max(t)) v(max(t))]
-      
-      % using PFDIC code
-%      mask = pfdic(scaled_image, 0.25, 0.45);
-%      for k = 1:Parameters.Dilations
-%        mask = bwmorph(mask, 'dilate');
-%      end
-%      contour = edge(mask);%zeros(h,w);
-%      retract = bwmorph(mask, 'thin', Inf);
-%      ends = bwmorph(retract, 'endpoints');
-%      [end_r end_c] = find(ends > 0);
-%      ends = [end_c end_r];
-      
       scaled_image = double(imread(fullfile(Metadata.Directory, Metadata.YFPFiles(j).name), 'TIFF'));
       scaled_image = scaled_image(y:y+h-1,x:x+w-1);
       
-%      [normals extend poles] = KymoNormals(retract, ends, mask, Parameters.NormalHalfWindow, Parameters.ExtensionLength);
-%      num_pixels = length(normals);
       num_pixels = tail_t-head_t+1;
       col_pixels = [col_pixels num_pixels];
       pixel_col = zeros(num_pixels, 1);
@@ -677,11 +650,6 @@ function DICPixelMapButton_Callback(hObject, eventdata, handles)
       else
         pixel_map = [pixel_col];
       end
-      
-%      if floor(j/10) == j/10
-%        figure
-%        imagesc(pixel_map);
-%      end
     end
 %    [head_1 tail_1 head_2 tail_2]
     

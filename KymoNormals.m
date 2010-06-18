@@ -70,8 +70,8 @@ function [normals extend poles] = KymoNormals(retract, ends, mask, b, c, d)
   tail_pt = uf(end,:);
   head_df = uf(1,:)-uf(2,:);
   tail_df = uf(end,:)-uf(end-1,:);
-  head_step = head_df/norm(head_df);%1/(1+(head_df(2)/head_df(1))^2);
-  tail_step = tail_df/norm(tail_df);%1/(1+(tail_df(2)/tail_df(1))^2);
+  head_step = head_df/norm(head_df);
+  tail_step = tail_df/norm(tail_df);
   
   head_pts = [];
   tail_pts = [];
@@ -145,66 +145,6 @@ function [normals extend poles] = KymoNormals(retract, ends, mask, b, c, d)
 %  plot(1:num_pixels, df);
 %  figure
 %  plot(1:num_pixels, nm);
-  
-  % Try to extend (uu,vv) to (min(u),v) and (max(u),v)
-%  du = 0.1;
-%  uu = min(u)-sgh*du:du:max(u)+sgh*du;  sgh is the sgolay half-window
-%  pp = splinefit(u, v, 32);
-%  vv = ppval(pp, uu);
-%  vv_floor = find(vv <= min(v));
-%  if isempty(vv_floor) == 0
-%    if vv(vv_floor(end)) > vv(vv_floor(1))
-%      the_vv_floor = max(vv_floor);
-%    else
-%      the_vv_floor = min(vv_floor);
-%    end
-%    uu_min = min(u)+du*(the_vv_floor-1-sgh);
-%  else
-%    uu_min = min(u);
-%  end
-%  vv_ceil = find(vv >= max(v));
-%  if isempty(vv_ceil) == 0
-%    if vv(vv_ceil(end)) > vv(vv_ceil(1))
-%      the_vv_ceil = min(vv_ceil);
-%    else
-%      the_vv_ceil = max(vv_ceil);
-%    end
-%    uu_max = min(u)+du*(the_vv_ceil-1-sgh);
-%  else
-%    uu_max = max(u);
-%  end
-%  if uu_min > min(u)
-%    uu_min = min(u);
-%  end
-%  if uu_max < max(u)
-%    uu_max = max(u);
-%  end
-%  ss = uu_min:du:uu_max;
-%  vv_ss = ppval(pp, ss);
-%  uu2 = uu_min-sgh*du:du:uu_max+sgh*du;
-%  vv2 = ppval(pp, uu2);
-%  
-%  figure
-%  hold on
-%  plot(u, v);
-%  plot(uu, vv);
-%  plot(ss, vv_ss, '.');
-%  hold off
-  
-  % Compute sgolay filtered curves
-%  [unused g] = sgolay(6, 1+2*sgh);
-%  s0 = vv2(1+sgh:length(uu2)-sgh);
-%  s1 = zeros(1, length(ss));
-%  for i = 1+sgh:length(uu2)-sgh
-%    s1(i-sgh) = dot(g(:,2), vv2(i-sgh:i+sgh))/du;
-%  end
-  
-  % Uniformly spaced points along retract
-%  uf = interparc(num_pixels, ss, s0, 'spline');
-%  nm_u = round(10*uf(:,1))/10;
-%  nm_indices = round((nm_u-uu_min)/du)+1;
-%  nm = [nm_u s1(nm_indices)'];
-%  nm = -1./nm(:,2);
   
   % for each pixel along the extended retract, linear extend in the directions 
   % normal to it and find the nearest-rounded pixels until we reach the edge 
