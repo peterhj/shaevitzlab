@@ -1,9 +1,29 @@
 function varargout = KymoMain(varargin)
-%       GUI for Kymograph.
-%       Comments displayed at the command line in response 
-%       to the help command. 
-
-% (Leave a blank line following the help.)
+% Copyright (C) 2010, Peter Jin and Mingzhai Sun
+% 
+% This program is free software; you can redistribute it and/or
+% modify it under the terms of the GNU General Public License
+% as published by the Free Software Foundation; either version 2
+% of the License, or (at your option) any later version.
+% 
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details. 
+% 
+% You should have received a copy of the GNU General Public License
+% along with this program; if not, write to the Free Software
+% Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307,
+% USA.
+% 
+% Authors: 
+% Peter Jin 
+% peterhaijin@gmail.com
+% 
+% Mingzhai Sun
+% mingzhai@gmail.com
+% 
+% v1.0 16-June-2010
 
 %  Initialization tasks
 
@@ -416,7 +436,6 @@ function ThresholdButton_Callback(hObject, eventdata, handles)
 %    this_image = bwmorph(this_image, 'spur');
 %    this_image = bwmorph(this_image, 'majority');
     this_image = threshold(Display.Average(y:y+h-1,x:x+w-1), Parameters.MinConnectedComponents);
-%    this_image = bwmorph(this_image, 'close'); % closing has bad effects
     this_image = Display.Average(y:y+h-1,x:x+w-1).*double(this_image);
 %    UpdateOutputGraph(this_image);
     ROI.Images = [ROI.Images this_image];

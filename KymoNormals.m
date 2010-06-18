@@ -1,4 +1,46 @@
 function [normals extend poles] = KymoNormals(retract, ends, mask, b, exd, n)
+% Copyright (C) 2010, Peter Jin and Mingzhai Sun
+% 
+% This program is free software; you can redistribute it and/or
+% modify it under the terms of the GNU General Public License
+% as published by the Free Software Foundation; either version 2
+% of the License, or (at your option) any later version.
+% 
+% This program is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details. 
+% 
+% You should have received a copy of the GNU General Public License
+% along with this program; if not, write to the Free Software
+% Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307,
+% USA.
+% 
+% Authors: 
+% Peter Jin 
+% peterhaijin@gmail.com
+% 
+% Mingzhai Sun
+% mingzhai@gmail.com
+% 
+% v1.0 16-June-2010
+% 
+% KymoRetract returns the contour, center line, ends of the center line
+% and the poles of the contour of the input image. 
+%
+% [contour, retract, ends, poles] = KymoRetract(the_image)
+%
+% Inputs: retract - binary image with all centerline pixel values of 1 and
+%           all others zeros. 
+%         ends - two ends of the centerline. 
+%         mask - image mask
+%         b - normal half window (?)
+%
+% Outputs: normals - contour of the input image
+%          extend - the center line of the image 
+%          
+% Algorithm: Just use morphological operation to get the contour, 
+% centerline and ends. So far the poles are not working. 
   
   normals = {};
   
