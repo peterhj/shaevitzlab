@@ -24,7 +24,7 @@
 % 
 % v1.0 16-June-2010
 
-function [normals extend poles] = KymoNormals(retract, ends, mask, b, exd)
+function [normals extend poles] = KymoNormals(retract, ends, mask, b, c, d)
 % KymoNormals returns [...]
 %
 % [normals extend poles] = KymoNormals(retract, ends, mask, b, exd, n)
@@ -83,13 +83,13 @@ function [normals extend poles] = KymoNormals(retract, ends, mask, b, exd)
   
   % linear increment past the ends of the retract, and check if the nearest 
   % pixels are still in the threshold mask
-  for i = 1:2*b+exd
+  for i = 1:2*b+c
     pt = round(head_pt+i*head_step);
     if pt(2) < 1 || pt(1) < 1
       unused = 0;
     elseif pt(2) > v_bound || pt(1) > u_bound
       unused = 0;
-    elseif mask(pt(2),pt(1)) > 0 || i <= exd
+    elseif mask(pt(2),pt(1)) > 0 || i <= c
       if pt == head_pt
         unused = 0;
       elseif pt == last_head_pt
@@ -105,7 +105,7 @@ function [normals extend poles] = KymoNormals(retract, ends, mask, b, exd)
       unused = 0;
     elseif pt(2) > v_bound || pt(1) > u_bound
       unused = 0;
-    elseif mask(pt(2),pt(1)) > 0 || i <= exd
+    elseif mask(pt(2),pt(1)) > 0 || i <= c
       if pt == tail_pt
         unused = 0;
       elseif pt == last_tail_pt
@@ -214,7 +214,7 @@ function [normals extend poles] = KymoNormals(retract, ends, mask, b, exd)
 %    pt0 = [u(t) v(t)];
     pt0 = uf(t,:);
     pts = round([pt0(x) pt0(y)]);
-    for j = 1:ceil(1.5*b)
+    for j = 1:2*b %ceil(1.5*b)
       pt(1) = pt0(1)-j*step;
       pt(2) = pt0(2)-j*nm(t)*step;
       pt = round(pt);
@@ -222,7 +222,7 @@ function [normals extend poles] = KymoNormals(retract, ends, mask, b, exd)
         unused = 0;
       elseif pt(2) > max(v) || pt(1) > max(u)
         unused = 0;
-      elseif mask(pt(y),pt(x)) > 0
+      elseif mask(pt(y),pt(x)) > 0 || j <= d
         pts = [pts; [pt(x) pt(y)]]; % 2 cols, N rows
       end
       pt(1) = pt0(1)+j*step;
@@ -232,7 +232,7 @@ function [normals extend poles] = KymoNormals(retract, ends, mask, b, exd)
         unused = 0;
       elseif pt(2) > max(v) || pt(1) > max(u)
         unused = 0;
-      elseif mask(pt(y),pt(x)) > 0
+      elseif mask(pt(y),pt(x)) > 0 || j <= d
         pts = [pts; [pt(x) pt(y)]]; % 2 cols, N rows
       end
     end

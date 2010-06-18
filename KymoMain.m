@@ -82,7 +82,7 @@ GUI.f = figure(...
 
 GUI.InputGraph = axes(...
   'Parent', GUI.f,...
-  'HandleVisibility', 'callback',...
+  'HandleVisibility', 'on',...
   'NextPlot', 'replacechildren',...
   'Units', 'pixels',...
   'Position', [4,44,512,512],...
@@ -90,7 +90,7 @@ GUI.InputGraph = axes(...
 
 GUI.OutputGraph = axes(...
   'Parent', GUI.f,...
-  'HandleVisibility', 'callback',...
+  'HandleVisibility', 'on',...
   'NextPlot', 'replacechildren',...
   'Units', 'pixels',...
   'Position', [544,44,512,512],...
@@ -464,7 +464,7 @@ function PixelMapButton_Callback(hObject, eventdata, handles)
     ROI.Retracts = [ROI.Retracts retract];
     ROI.Ends = [ROI.Ends ends];
     
-    [normals extend poles] = KymoNormals(cell2mat(ROI.Retracts(1,i)), cell2mat(ROI.Ends(1,i)), cell2mat(ROI.Images(1,i)), Parameters.NormalHalfWindow, 0);
+    [normals extend poles] = KymoNormals(cell2mat(ROI.Retracts(1,i)), cell2mat(ROI.Ends(1,i)), cell2mat(ROI.Images(1,i)), Parameters.NormalHalfWindow, 0, 0);
     ROI.Poles = [ROI.Poles poles];
     ROI.Extends = [ROI.Extends extend];
     
@@ -554,19 +554,19 @@ function DICPixelMapButton_Callback(hObject, eventdata, handles)
     col_pixels = [];
     
     [contour retract ends] = KymoRetract(cell2mat(ROI.Images(1,i)));
-    [normals extend poles] = KymoNormals(retract, ends, cell2mat(ROI.Images(1,i)), Parameters.NormalHalfWindow, 0);
+    [normals extend poles] = KymoNormals(retract, ends, cell2mat(ROI.Images(1,i)), 8, 25, 0);
+    [normals_ext extra1 extra2] = KymoNormals(retract, ends, ones(h,w), 8, 25, 15);
     
-%    head_ts = [];
-%    tail_ts = [];
+    head_1 = []; head_2 = [];
+    tail_1 = []; tail_2 = [];
     for j = 1:Metadata.NumYFPFiles
       
       scaled_image = double(imread(fullfile(Metadata.Directory, Metadata.DICFiles(2*j-1).name), 'TIFF'));
       scaled_image = scaled_image(y:y+h-1,x:x+w-1);
       
-      % directly find mask from DIC
-      scaled_image = scaled_image-mean2(scaled_image);
-      mask = threshold(abs(scaled_image), 50);
-      scaled_image = mask.*abs(scaled_image);
+      % find and locally close mask from DIC
+      scaled_image = abs(scaled_image-mean2(scaled_image));
+      mask = threshold(scaled_image, 50);
       % find points near the poles
       ends = bwmorph(mask, 'thin', Inf);
       ends = bwmorph(ends, 'endpoints', Inf);
@@ -574,14 +574,9 @@ function DICPixelMapButton_Callback(hObject, eventdata, handles)
       for k = 1:length(end_u)
         mask = localclose(mask, [end_u(k) end_v(k)], 15);
       end
-%      for k = 1:2
-%        mask = bwmorph(mask, 'dilate');
-%      end
-%      scaled_image = mask.*abs(scaled_image);
+      scaled_image = mask.*abs(scaled_image);
       
-      j
-      
-      % coarse approximation of the DIC poles
+      % first approximation of the DIC poles
       [v u] = find(extend > 0);
       ends = bwmorph(extend, 'endpoints');
       [end_r end_c] = find(ends > 0);
@@ -596,40 +591,59 @@ function DICPixelMapButton_Callback(hObject, eventdata, handles)
       head_t = min(t);
       tail_t = max(t);
       
-      % finer approximation of the DIC poles
-%      if head_t > 1
-%        for k = head_t-1:-1:max(1, head_t-10)
-%          line = cell2mat(normals(1,k));
-%          [lv lu] = find(scaled_image(line(:,2),line(:,1)) > 0);
-%          this_len = length(lu);
-%          if this_len == 0
-%            head_t = k+1;
-%          end
-%        end
-%      end
-%      if tail_t < length(u)
-%        for k = tail_t+1:min(length(u), tail_t+10)
-%          line = cell2mat(normals(1,k));
-%          [lv lu] = find(scaled_image(line(:,2),line(:,1)) > 0);
-%          this_len = length(lu);
-%          if this_len == 0
-%            tail_t = k-1;
-%          end
-%        end
-%      end
+      head_1 = [head_1; head_t];
+      tail_1 = [tail_1; tail_t];
       
-      if tail_t-head_t < 82
-        figure;
-        imagesc(scaled_image+4000*extend);
-        title(num2str(j));
+      % second approximation of the DIC poles
+      if head_t > 1
+        for k = head_t-1:-1:1
+          line = cell2mat(normals_ext(1,k));
+          this_len = 0;
+          for l = 1:length(line(:,1))
+            if mask(line(l,2),line(l,1)) > 0
+              this_len = this_len+1;
+            end
+          end
+          if this_len == 0
+            head_t = k+1;
+            break
+          end
+          if k == 1 && this_len > 0
+            [j 1]
+          end
+        end
+      end
+      if tail_t < length(u)
+        for k = tail_t+1:length(u)
+          line = cell2mat(normals_ext(1,k));
+          this_len = 0;
+          for l = 1:length(line(:,1))
+            if mask(line(l,2),line(l,1)) > 0
+              this_len = this_len+1;
+            end
+          end
+          if this_len == 0
+            tail_t = k-1;
+            break
+          end
+          if k == length(u) && this_len > 0
+            [j 2]
+          end
+        end
       end
       
-%      head_ts = [head_ts; head_t];
-%      tail_ts = [tail_ts; tail_t];
+      head_2 = [head_2; head_t];
+      tail_2 = [tail_2; tail_t];
+      
+%      j
+      
+%      if tail_t-head_t < 55
+%        figure;
+%        imagesc(scaled_image+4000*extend);
+%        title(num2str(j));
+%      end
       
 %      [u(min(t)) v(min(t)); u(max(t)) v(max(t))]
-      
-%      return
       
       % using PFDIC code
 %      mask = pfdic(scaled_image, 0.25, 0.45);
@@ -649,8 +663,8 @@ function DICPixelMapButton_Callback(hObject, eventdata, handles)
 %      num_pixels = length(normals);
       num_pixels = tail_t-head_t+1;
       col_pixels = [col_pixels num_pixels];
-%      pixel_col = zeros(num_pixels, 1);
-      pixel_col = 600*ones(100, 1);
+      pixel_col = zeros(num_pixels, 1);
+%      pixel_col = 640*ones(100, 1);
       for k = head_t:tail_t % 1:num_pixels
         line = cell2mat(normals(1,k));
         line_pixels = impixel(scaled_image, line(:,1), line(:,2));
@@ -669,8 +683,7 @@ function DICPixelMapButton_Callback(hObject, eventdata, handles)
 %        imagesc(pixel_map);
 %      end
     end
-%    head_ts
-%    tail_ts
+%    [head_1 tail_1 head_2 tail_2]
     
     figure;
     imagesc(pixel_map);
