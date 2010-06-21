@@ -41,6 +41,7 @@ Metadata.DICFiles = 0;
 Metadata.NumYFPFiles = 0;
 Metadata.NumRedFiles = 0;
 Metadata.NumDICFiles = 0;
+Metadata.DICStep = 0;
 
 ROI.N = 0; % number of regions of interest (N)
 ROI.Rects = []; % bounding rectangle
@@ -322,6 +323,101 @@ function ResetROI()
   ROI.RedPixelMap = {};
 end
 
+% --- 
+function FluorescenceNormals()
+  
+end
+
+% --- 
+function [pixel_col num_pixels] = DICNormals(j, files, col_pixels, extend, normals, normals_ext, x, y, w, h)
+  scaled_image = double(imread(fullfile(Metadata.Directory, Metadata.DICFiles(Metadata.DICStep*j-1).name), 'TIFF'));
+  scaled_image = scaled_image(y:y+h-1,x:x+w-1);
+  
+  % find and locally close mask from DIC, then find points near poles
+  scaled_image = abs(scaled_image-mean2(scaled_image));
+  mask = threshold(scaled_image, 50);
+  ends = bwmorph(mask, 'thin', Inf);
+  ends = bwmorph(ends, 'endpoints');
+  [end_v end_u] = find(ends > 0);
+  for k = 1:length(end_u)
+    mask = localclose(mask, [end_u(k) end_v(k)], 15);
+  end
+  scaled_image = mask.*abs(scaled_image);
+  
+  % first approximation of the DIC poles
+  [v u] = find(extend > 0);
+  ends = bwmorph(extend, 'endpoints');
+  [end_r end_c] = find(ends > 0);
+  [u v] = nnsort2(u, v, [end_c(1) end_r(1)]);
+  [int_v int_u] = find(extend.*mask > 0);
+  num_intersect = length(int_u);
+  assert(num_intersect >= 2);
+  t = [];
+  for k = 1:num_intersect
+    t = [t intersect(find(v == int_v(k)), find(u == int_u(k)))];
+  end
+  head_t = min(t);
+  tail_t = max(t);
+  
+  % second approximation of the DIC poles
+  if head_t > 1
+    for k = head_t-1:-1:1
+      line = cell2mat(normals_ext(1,k));
+      this_len = 0;
+      for l = 1:length(line(:,1))
+        if mask(line(l,2),line(l,1)) > 0
+          this_len = this_len+1;
+        end
+      end
+      if this_len == 0
+        head_t = k+1;
+        break
+      end
+      if k == 1 && this_len > 0
+        [j 1]
+      end
+    end
+  end
+  if tail_t < length(u)
+    for k = tail_t+1:length(u)
+      line = cell2mat(normals_ext(1,k));
+      this_len = 0;
+      for l = 1:length(line(:,1))
+        if mask(line(l,2),line(l,1)) > 0
+          this_len = this_len+1;
+        end
+      end
+      if this_len == 0
+        tail_t = k-1;
+        break
+      end
+      if k == length(u) && this_len > 0
+        [j 2]
+      end
+    end
+  end
+  
+  if tail_t-head_t < 0.35*mean(col_pixels)
+    tail_t-head_t+1
+    figure;
+    imagesc(scaled_image+4000*extend);
+    title(num2str(j));
+  end
+  
+  scaled_image = double(imread(fullfile(Metadata.Directory, files(j).name), 'TIFF'));
+  scaled_image = scaled_image(y:y+h-1,x:x+w-1);
+  
+  num_pixels = tail_t-head_t+1;
+%  col_pixels = [col_pixels num_pixels];
+  pixel_col = zeros(num_pixels, 1);
+%  pixel_col = 640*ones(100, 1);
+  for k = head_t:tail_t % 1:num_pixels
+    line = cell2mat(normals(1,k));
+    line_pixels = impixel(scaled_image, line(:,1), line(:,2));
+    pixel_col(k-head_t+1) = mean(line_pixels(:,1));
+  end
+end
+
 %  Callbacks
 
 % --- 
@@ -335,6 +431,7 @@ function LoadStackButton_Callback(hObject, eventdata, handles)
     Metadata.NumYFPFiles = length(Metadata.YFPFiles);
     Metadata.NumRedFiles = length(Metadata.RedFiles);
     Metadata.NumDICFiles = length(Metadata.DICFiles);
+    Metadata.DICStep = round(Metadata.NumDICFiles/Metadata.NumYFPFiles);
     
     Display.InputIndex = 1;
     set(GUI.Label_StackDir, 'String', Metadata.Directory);
@@ -495,7 +592,7 @@ function PixelMapButton_Callback(hObject, eventdata, handles)
     end
     figure
     imagesc(pixel_map);
-    title(strcat('YFP/GFP ROI', num2str(i)));
+    title(strcat('YFP/GFP Fluorescence ROI', num2str(i)));
     ROI.YFPPixelMap = [ROI.YFPPixelMap pixel_map];
     
 %    pixel_map = [];
@@ -523,7 +620,7 @@ function PixelMapButton_Callback(hObject, eventdata, handles)
     end
     figure
     imagesc(pixel_map);
-    title(strcat('Red/mCherry ROI', num2str(i)));
+    title(strcat('Red/mCherry Fluorescence ROI', num2str(i)));
     ROI.RedPixelMap = [ROI.RedPixelMap pixel_map];
   end
   UpdateOutputGraph(cell2mat(Display.ROI(1,1)));
@@ -537,111 +634,19 @@ function DICPixelMapButton_Callback(hObject, eventdata, handles)
     w = round(ROI.Rects(4*i-1));
     h = round(ROI.Rects(4*i));
     
-    pixel_map = [];
-    col_pixels = [];
-    
     [contour retract ends] = KymoRetract(cell2mat(ROI.Images(1,i)));
     [normals extend poles] = KymoNormals(retract, ends, cell2mat(ROI.Images(1,i)), 8, 25, 0);
     [normals_ext extra1 extra2] = KymoNormals(retract, ends, ones(h,w), 8, 25, 15);
     
-    head_1 = []; head_2 = [];
-    tail_1 = []; tail_2 = [];
+    pixel_map = [];
+    col_pixels = [];
+    
+    tic;
     for j = 1:Metadata.NumYFPFiles
-      
-      scaled_image = double(imread(fullfile(Metadata.Directory, Metadata.DICFiles(2*j-1).name), 'TIFF'));
-      scaled_image = scaled_image(y:y+h-1,x:x+w-1);
-      
-      % find and locally close mask from DIC
-      scaled_image = abs(scaled_image-mean2(scaled_image));
-      mask = threshold(scaled_image, 50);
-      
-      % find points near the poles
-      ends = bwmorph(mask, 'thin', Inf);
-      ends = bwmorph(ends, 'endpoints', Inf);
-      [end_v end_u] = find(ends > 0);
-      for k = 1:length(end_u)
-        mask = localclose(mask, [end_u(k) end_v(k)], 15);
-      end
-      scaled_image = mask.*abs(scaled_image);
-      
-      % first approximation of the DIC poles
-      [v u] = find(extend > 0);
-      ends = bwmorph(extend, 'endpoints');
-      [end_r end_c] = find(ends > 0);
-      [u v] = nnsort2(u, v, [end_c(1) end_r(1)]);
-      [int_v int_u] = find(extend.*mask > 0);
-      num_intersect = length(int_u);
-      assert(num_intersect >= 2);
-      t = [];
-      for k = 1:num_intersect
-        t = [t intersect(find(v == int_v(k)), find(u == int_u(k)))];
-      end
-      head_t = min(t);
-      tail_t = max(t);
-      
-      head_1 = [head_1; head_t];
-      tail_1 = [tail_1; tail_t];
-      
-      % second approximation of the DIC poles
-      if head_t > 1
-        for k = head_t-1:-1:1
-          line = cell2mat(normals_ext(1,k));
-          this_len = 0;
-          for l = 1:length(line(:,1))
-            if mask(line(l,2),line(l,1)) > 0
-              this_len = this_len+1;
-            end
-          end
-          if this_len == 0
-            head_t = k+1;
-            break
-          end
-          if k == 1 && this_len > 0
-            [j 1]
-          end
-        end
-      end
-      if tail_t < length(u)
-        for k = tail_t+1:length(u)
-          line = cell2mat(normals_ext(1,k));
-          this_len = 0;
-          for l = 1:length(line(:,1))
-            if mask(line(l,2),line(l,1)) > 0
-              this_len = this_len+1;
-            end
-          end
-          if this_len == 0
-            tail_t = k-1;
-            break
-          end
-          if k == length(u) && this_len > 0
-            [j 2]
-          end
-        end
-      end
-      
-      head_2 = [head_2; head_t];
-      tail_2 = [tail_2; tail_t];
-      
-%      j
-      
-%      if tail_t-head_t < 55
-%        figure;
-%        imagesc(scaled_image+4000*extend);
-%        title(num2str(j));
-%      end
-      
-      scaled_image = double(imread(fullfile(Metadata.Directory, Metadata.YFPFiles(j).name), 'TIFF'));
-      scaled_image = scaled_image(y:y+h-1,x:x+w-1);
-      
-      num_pixels = tail_t-head_t+1;
+      [pixel_col num_pixels] = DICNormals(j, Metadata.YFPFiles, col_pixels, extend, normals, normals_ext, x, y, w, h);
       col_pixels = [col_pixels num_pixels];
-      pixel_col = zeros(num_pixels, 1);
-%      pixel_col = 640*ones(100, 1);
-      for k = head_t:tail_t % 1:num_pixels
-        line = cell2mat(normals(1,k));
-        line_pixels = impixel(scaled_image, line(:,1), line(:,2));
-        pixel_col(k-head_t+1) = mean(line_pixels(:,1));
+      if ceil(j/5) == floor(j/5)
+        status = j/Metadata.NumYFPFiles
       end
       if j > 1
         map_size = size(pixel_map);
@@ -651,11 +656,35 @@ function DICPixelMapButton_Callback(hObject, eventdata, handles)
         pixel_map = [pixel_col];
       end
     end
-%    [head_1 tail_1 head_2 tail_2]
-    
+    col_pixels, min(col_pixels)
     figure;
     imagesc(pixel_map);
+    title(strcat('YFP/GFP DIC ROI', num2str(i)));
+    toc;
+    
+    pixel_map = [];
+    col_pixels = [];
+    
+    tic;
+    for j = 1:Metadata.NumRedFiles
+      [pixel_col num_pixels] = DICNormals(j, Metadata.RedFiles, col_pixels, extend, normals, normals_ext, x, y, w, h);
+      col_pixels = [col_pixels num_pixels];
+      if ceil(j/5) == floor(j/5)
+        status = j/Metadata.NumRedFiles
+      end
+      if j > 1
+        map_size = size(pixel_map);
+        min_length = min(map_size(1), length(pixel_col));
+        pixel_map = [pixel_map(1:min_length,:) pixel_col(1:min_length,:)];
+      else
+        pixel_map = [pixel_col];
+      end
+    end
     col_pixels, min(col_pixels)
+    figure;
+    imagesc(pixel_map);
+    title(strcat('Red/mCherry DIC ROI', num2str(i)));
+    toc;
   end
 end
 
