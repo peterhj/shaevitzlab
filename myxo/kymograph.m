@@ -332,13 +332,14 @@ function FluorescenceNormals()
 end
 
 % --- 
-function [pixel_col center num_pixels] = DICNormals(j, files, col_pixels, extend, normals, normals_ext, x, y, w, h)
+function [pixel_col center num_pixels mask] = DICNormals(j, files, col_pixels, extend, normals, normals_ext, x, y, w, h)
   scaled_image = double(imread(fullfile(Metadata.Directory, Metadata.DICFiles(Metadata.DICStep*j+Metadata.DICOffset).name), 'TIFF'));
   scaled_image = scaled_image(y:y+h-1,x:x+w-1);
   
   % Locally close mask from DIC, then find points near poles
   scaled_image = abs(scaled_image-mean2(scaled_image));
   mask = threshold(scaled_image, 50);
+  mask = bwmorph(mask, 'dilate', 5);
   ends = bwmorph(mask, 'thin', Inf);
   ends = bwmorph(ends, 'endpoints');
   [end_v end_u] = find(ends > 0);
@@ -351,7 +352,7 @@ function [pixel_col center num_pixels] = DICNormals(j, files, col_pixels, extend
   [v u] = find(extend > 0);
   ends = bwmorph(extend, 'endpoints');
   [end_r end_c] = find(ends > 0);
-  [u v] = nnsort2(u, v, [end_c(1) end_r(1)]);
+  [u v] = eusort2(u, v, [end_c(1) end_r(1)]); % nnsort2
   [int_v int_u] = find(extend.*mask > 0);
   num_intersect = length(int_u);
   assert(num_intersect >= 2);
@@ -359,8 +360,11 @@ function [pixel_col center num_pixels] = DICNormals(j, files, col_pixels, extend
   for k = 1:num_intersect
     t = [t intersect(find(v == int_v(k)), find(u == int_u(k)))];
   end
+  % these are the indices of the raw intersections with the mask
   head_t = min(t);
   tail_t = max(t);
+  
+%  [j head_t tail_t]
   
   % Second approximation of the DIC poles
   if head_t > 1
@@ -376,8 +380,8 @@ function [pixel_col center num_pixels] = DICNormals(j, files, col_pixels, extend
         head_t = k+1;
         break
       end
-%      if k == 1 && this_len > 0
-%        [j 1]
+%      if k == 1
+%        head_t = k;
 %      end
     end
   end
@@ -394,11 +398,13 @@ function [pixel_col center num_pixels] = DICNormals(j, files, col_pixels, extend
         tail_t = k-1;
         break
       end
-%      if k == length(u) && this_len > 0
-%        [j 2]
+%      if k == length(u)
+%        head_t = k;
 %      end
     end
   end
+  
+%  [j head_t tail_t]
   
   % Now we have an okay approximation of the cell poles from DIC, but they are 
   % sometimes short; instead we use them to compute the "center" of the cell 
@@ -408,23 +414,24 @@ function [pixel_col center num_pixels] = DICNormals(j, files, col_pixels, extend
   center = mean([head_t tail_t]);
   
 %  if tail_t-head_t < 0.9*mean(col_pixels)
+%    figure; plot(u,v);
 %    figure;
 %    imagesc(scaled_image+10*mean(std(scaled_image))*extend);
 %    title(strcat(num2str(j), ' length ', num2str(tail_t-head_t+1)));
 %  end
   
-%  scaled_image = double(imread(fullfile(Metadata.Directory, files(j).name), 'TIFF'));
-%  scaled_image = scaled_image(y:y+h-1,x:x+w-1);
-  num_pixels = tail_t-head_t+1;
   pixel_col = [];
-%  col_pixels = [col_pixels num_pixels];
-%  pixel_col = zeros(num_pixels, 1);
-%  pixel_col = 700*ones(80, 1);
-%  for k = head_t:tail_t%1:num_pixels
-%    line = cell2mat(normals(1,k));
-%    line_pixels = impixel(scaled_image, line(:,1), line(:,2));
-%    pixel_col(k-head_t+1) = mean(line_pixels(:,1));
-%  end
+  scaled_image = double(imread(fullfile(Metadata.Directory, files(j).name), 'TIFF'));
+  scaled_image = scaled_image(y:y+h-1,x:x+w-1);
+  num_pixels = tail_t-head_t+1;
+  col_pixels = [col_pixels num_pixels];
+  pixel_col = zeros(num_pixels, 1);
+%  pixel_col = 640*ones(85, 1);
+  for k = head_t:tail_t%1:num_pixels
+    line = cell2mat(normals(1,k));
+    line_pixels = impixel(scaled_image, line(:,1), line(:,2));
+    pixel_col(k-head_t+1) = mean(line_pixels(:,1));
+  end
 end
 
 %  Callbacks
@@ -656,44 +663,46 @@ function DICPixelMapButton_Callback(hObject, eventdata, handles)
     pixel_map = [];
     col_pixels = [];
     centers = [];
+    masks = {};
     
     % get center and num_pixels from DICNormals and plot the fluorescence data 
     % as an interval around the center
     
     tic;
     for j = 1:Metadata.NumYFPFiles
-      [pixel_col center num_pixels] = DICNormals(j, Metadata.YFPFiles, col_pixels, extend, normals, normals_ext, x, y, w, h);
+      [pixel_col center num_pixels mask] = DICNormals(j, Metadata.YFPFiles, col_pixels, extend, normals, normals_ext, x, y, w, h);
       col_pixels = [col_pixels num_pixels];
       centers = [centers center];
+      masks = [masks mask];
       if ceil(j/5) == floor(j/5)
         status = j/Metadata.NumYFPFiles
       end
-%      if j > 1
-%        map_size = size(pixel_map);
-%        min_length = min(map_size(1), length(pixel_col));
-%        pixel_map = [pixel_map(1:min_length,:) pixel_col(1:min_length,:)];
-%      else
-%        pixel_map = [pixel_col];
-%      end
-      scaled_image = double(imread(fullfile(Metadata.Directory, Metadata.YFPFiles(j).name), 'TIFF'));
-      pixel_col = zeros(all_pixels, 1);
-      for k = 1:all_pixels
-        line = cell2mat(normals(1,k));
-        line_pixels = impixel(scaled_image(y:y+h-1,x:x+w-1), line(:,1), line(:,2));
-        pixel_col(k) = mean(line_pixels(:,1));
+      if j > 1
+        map_size = size(pixel_map);
+        min_length = min(map_size(1), length(pixel_col));
+        pixel_map = [pixel_map(1:min_length,:) pixel_col(1:min_length,:)];
+      else
+        pixel_map = [pixel_col];
       end
-      pixel_map = [pixel_map pixel_col];
+%      scaled_image = double(imread(fullfile(Metadata.Directory, Metadata.YFPFiles(j).name), 'TIFF'));
+%      pixel_col = zeros(all_pixels, 1);
+%      for k = 1:all_pixels
+%        line = cell2mat(normals(1,k));
+%        line_pixels = impixel(scaled_image(y:y+h-1,x:x+w-1), line(:,1), line(:,2));
+%        pixel_col(k) = mean(line_pixels(:,1));
+%      end
+%      pixel_map = [pixel_map pixel_col];
     end
     col_pixels, min(col_pixels)
-    centers = round(centers);
-    width = mean(num_pixels);
-    halfw = floor(width/2);
-    new_pixel_map = [];
-    for j = 1:Metadata.NumYFPFiles
-      new_pixel_map = [new_pixel_map pixel_map(centers(j)-halfw:centers(j)+halfw,j)];
-    end
+%    centers = round(centers);
+%    width = mean(num_pixels);
+%    halfw = floor(width/2);
+%    pixel_map = [];
+%    for j = 1:Metadata.NumYFPFiles
+%      pixel_map = [pixel_map pixel_map(centers(j)-halfw:centers(j)+halfw,j)];
+%    end
     figure;
-    imagesc(new_pixel_map);
+    imagesc(pixel_map);
     title(strcat('YFP/GFP DIC ROI', num2str(i)));
     toc;
     
@@ -703,40 +712,44 @@ function DICPixelMapButton_Callback(hObject, eventdata, handles)
     
     tic;
     for j = 1:Metadata.NumRedFiles
-      [pixel_col center num_pixels] = DICNormals(j, Metadata.RedFiles, col_pixels, extend, normals, normals_ext, x, y, w, h);
+      [pixel_col center num_pixels mask] = DICNormals(j, Metadata.RedFiles, col_pixels, extend, normals, normals_ext, x, y, w, h);
       col_pixels = [col_pixels num_pixels];
       centers = [centers center];
       if ceil(j/5) == floor(j/5)
         status = j/Metadata.NumRedFiles
       end
-%      if j > 1
-%        map_size = size(pixel_map);
-%        min_length = min(map_size(1), length(pixel_col));
-%        pixel_map = [pixel_map(1:min_length,:) pixel_col(1:min_length,:)];
-%      else
-%        pixel_map = [pixel_col];
-%      end
-      scaled_image = double(imread(fullfile(Metadata.Directory, Metadata.RedFiles(j).name), 'TIFF'));
-      pixel_col = zeros(all_pixels, 1);
-      for k = 1:all_pixels
-        line = cell2mat(normals(1,k));
-        line_pixels = impixel(scaled_image(y:y+h-1,x:x+w-1), line(:,1), line(:,2));
-        pixel_col(k) = mean(line_pixels(:,1));
+      if j > 1
+        map_size = size(pixel_map);
+        min_length = min(map_size(1), length(pixel_col));
+        pixel_map = [pixel_map(1:min_length,:) pixel_col(1:min_length,:)];
+      else
+        pixel_map = [pixel_col];
       end
-      pixel_map = [pixel_map pixel_col];
+%      scaled_image = double(imread(fullfile(Metadata.Directory, Metadata.RedFiles(j).name), 'TIFF'));
+%      pixel_col = zeros(all_pixels, 1);
+%      for k = 1:all_pixels
+%        line = cell2mat(normals(1,k));
+%        line_pixels = impixel(scaled_image(y:y+h-1,x:x+w-1), line(:,1), line(:,2));
+%        pixel_col(k) = mean(line_pixels(:,1));
+%      end
+%      pixel_map = [pixel_map pixel_col];
     end
     col_pixels, min(col_pixels)
-    centers = round(centers);
-    width = mean(num_pixels);
-    halfw = floor(width/2);
-    new_pixel_map = [];
-    for j = 1:Metadata.NumRedFiles
-      new_pixel_map = [new_pixel_map pixel_map(centers(j)-halfw:centers(j)+halfw,j)];
-    end
+%    centers = round(centers);
+%    width = mean(num_pixels);
+%    halfw = floor(width/2);
+%    pixel_map = [];
+%    for j = 1:Metadata.NumRedFiles
+%      pixel_map = [pixel_map pixel_map(centers(j)-halfw:centers(j)+halfw,j)];
+%    end
     figure;
-    imagesc(new_pixel_map);
+    imagesc(pixel_map);
     title(strcat('Red/mCherry DIC ROI', num2str(i)));
     toc;
+    
+    [savefile savepath] = uiputfile();
+    savefile, savepath
+    save(fullfile(savepath, savefile), 'masks');
   end
 end
 

@@ -51,7 +51,7 @@ function [normals extend poles] = KymoNormals(retract, ends, mask, b, c, d)
   num_pixels = length(u);
   
   % 1. Nearest-neighbor sort, starting at an endpoint
-  [u v] = nnsort2(u, v, ends(1,:));
+  [u v] = eusort2(u, v, ends(1,:)); % nnsort2
   uf = interparc(ceil(num_pixels/15), u, v, 'linear');
   uf = interparc(num_pixels, uf(:,1), uf(:,2), 'spline');
   
