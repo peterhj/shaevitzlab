@@ -24,7 +24,7 @@
 % 
 % v1.0 16-June-2010
 
-function varargout = KymoMain(varargin)
+function varargout = kymograph(varargin)
 
 %  Initialization tasks
 
@@ -413,18 +413,18 @@ function [pixel_col center num_pixels] = DICNormals(j, files, col_pixels, extend
 %    title(strcat(num2str(j), ' length ', num2str(tail_t-head_t+1)));
 %  end
   
-  scaled_image = double(imread(fullfile(Metadata.Directory, files(j).name), 'TIFF'));
-  scaled_image = scaled_image(y:y+h-1,x:x+w-1);
-  
+%  scaled_image = double(imread(fullfile(Metadata.Directory, files(j).name), 'TIFF'));
+%  scaled_image = scaled_image(y:y+h-1,x:x+w-1);
   num_pixels = tail_t-head_t+1;
+  pixel_col = [];
 %  col_pixels = [col_pixels num_pixels];
 %  pixel_col = zeros(num_pixels, 1);
-  pixel_col = 700*ones(80, 1);
-  for k = head_t:tail_t%1:num_pixels
-    line = cell2mat(normals(1,k));
-    line_pixels = impixel(scaled_image, line(:,1), line(:,2));
-    pixel_col(k-head_t+1) = mean(line_pixels(:,1));
-  end
+%  pixel_col = 700*ones(80, 1);
+%  for k = head_t:tail_t%1:num_pixels
+%    line = cell2mat(normals(1,k));
+%    line_pixels = impixel(scaled_image, line(:,1), line(:,2));
+%    pixel_col(k-head_t+1) = mean(line_pixels(:,1));
+%  end
 end
 
 %  Callbacks
@@ -564,7 +564,7 @@ function PixelMapButton_Callback(hObject, eventdata, handles)
     ROI.Retracts = [ROI.Retracts retract];
     ROI.Ends = [ROI.Ends ends];
     
-    [normals extend poles] = KymoNormals(cell2mat(ROI.Retracts(1,i)), cell2mat(ROI.Ends(1,i)), cell2mat(ROI.Images(1,i)), Parameters.NormalHalfWindow, 0, 0);
+    [normals extend poles] = KymoNormals(cell2mat(ROI.Retracts(1,i)), cell2mat(ROI.Ends(1,i)), cell2mat(ROI.Images(1,i)), 15, 0, 0);
     ROI.Poles = [ROI.Poles poles];
     ROI.Extends = [ROI.Extends extend];
     
@@ -648,11 +648,14 @@ function DICPixelMapButton_Callback(hObject, eventdata, handles)
     [contour retract ends] = KymoRetract(cell2mat(ROI.Images(1,i)));
     [normals extend poles] = KymoNormals(retract, ends, cell2mat(ROI.Images(1,i)), 15, 25, 0);
     [normals_ext extra1 extra2] = KymoNormals(retract, ends, ones(h,w), 15, 25, 25);
+    [v u] = find(extend > 0);
+    all_pixels = length(u);
     
-    % TODO show ROI bounding box motion
+    % TODO show ROI bounding box motion (impoly)
     
     pixel_map = [];
     col_pixels = [];
+    centers = [];
     
     % get center and num_pixels from DICNormals and plot the fluorescence data 
     % as an interval around the center
@@ -661,44 +664,77 @@ function DICPixelMapButton_Callback(hObject, eventdata, handles)
     for j = 1:Metadata.NumYFPFiles
       [pixel_col center num_pixels] = DICNormals(j, Metadata.YFPFiles, col_pixels, extend, normals, normals_ext, x, y, w, h);
       col_pixels = [col_pixels num_pixels];
+      centers = [centers center];
       if ceil(j/5) == floor(j/5)
         status = j/Metadata.NumYFPFiles
       end
-      if j > 1
-        map_size = size(pixel_map);
-        min_length = min(map_size(1), length(pixel_col));
-        pixel_map = [pixel_map(1:min_length,:) pixel_col(1:min_length,:)];
-      else
-        pixel_map = [pixel_col];
+%      if j > 1
+%        map_size = size(pixel_map);
+%        min_length = min(map_size(1), length(pixel_col));
+%        pixel_map = [pixel_map(1:min_length,:) pixel_col(1:min_length,:)];
+%      else
+%        pixel_map = [pixel_col];
+%      end
+      scaled_image = double(imread(fullfile(Metadata.Directory, Metadata.YFPFiles(j).name), 'TIFF'));
+      pixel_col = zeros(all_pixels, 1);
+      for k = 1:all_pixels
+        line = cell2mat(normals(1,k));
+        line_pixels = impixel(scaled_image(y:y+h-1,x:x+w-1), line(:,1), line(:,2));
+        pixel_col(k) = mean(line_pixels(:,1));
       end
+      pixel_map = [pixel_map pixel_col];
     end
     col_pixels, min(col_pixels)
+    centers = round(centers);
+    width = mean(num_pixels);
+    halfw = floor(width/2);
+    new_pixel_map = [];
+    for j = 1:Metadata.NumYFPFiles
+      new_pixel_map = [new_pixel_map pixel_map(centers(j)-halfw:centers(j)+halfw,j)];
+    end
     figure;
-    imagesc(pixel_map);
+    imagesc(new_pixel_map);
     title(strcat('YFP/GFP DIC ROI', num2str(i)));
     toc;
     
     pixel_map = [];
     col_pixels = [];
+    centers = [];
     
     tic;
     for j = 1:Metadata.NumRedFiles
       [pixel_col center num_pixels] = DICNormals(j, Metadata.RedFiles, col_pixels, extend, normals, normals_ext, x, y, w, h);
       col_pixels = [col_pixels num_pixels];
+      centers = [centers center];
       if ceil(j/5) == floor(j/5)
         status = j/Metadata.NumRedFiles
       end
-      if j > 1
-        map_size = size(pixel_map);
-        min_length = min(map_size(1), length(pixel_col));
-        pixel_map = [pixel_map(1:min_length,:) pixel_col(1:min_length,:)];
-      else
-        pixel_map = [pixel_col];
+%      if j > 1
+%        map_size = size(pixel_map);
+%        min_length = min(map_size(1), length(pixel_col));
+%        pixel_map = [pixel_map(1:min_length,:) pixel_col(1:min_length,:)];
+%      else
+%        pixel_map = [pixel_col];
+%      end
+      scaled_image = double(imread(fullfile(Metadata.Directory, Metadata.RedFiles(j).name), 'TIFF'));
+      pixel_col = zeros(all_pixels, 1);
+      for k = 1:all_pixels
+        line = cell2mat(normals(1,k));
+        line_pixels = impixel(scaled_image(y:y+h-1,x:x+w-1), line(:,1), line(:,2));
+        pixel_col(k) = mean(line_pixels(:,1));
       end
+      pixel_map = [pixel_map pixel_col];
     end
     col_pixels, min(col_pixels)
+    centers = round(centers);
+    width = mean(num_pixels);
+    halfw = floor(width/2);
+    new_pixel_map = [];
+    for j = 1:Metadata.NumRedFiles
+      new_pixel_map = [new_pixel_map pixel_map(centers(j)-halfw:centers(j)+halfw,j)];
+    end
     figure;
-    imagesc(pixel_map);
+    imagesc(new_pixel_map);
     title(strcat('Red/mCherry DIC ROI', num2str(i)));
     toc;
   end
