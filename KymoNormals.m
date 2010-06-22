@@ -129,7 +129,6 @@ function [normals extend poles] = KymoNormals(retract, ends, mask, b, c, d)
 %  end
   
   poles = [u(1) v(1); u(end) v(end)];
-  
   uf = interparc(ceil(num_pixels/15), u, v, 'linear');
   uf = interparc(num_pixels, uf(:,1), uf(:,2), 'spline');
   df = diff(uf(:,2))./diff(uf(:,1));

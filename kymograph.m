@@ -42,6 +42,7 @@ Metadata.NumYFPFiles = 0;
 Metadata.NumRedFiles = 0;
 Metadata.NumDICFiles = 0;
 Metadata.DICStep = 0;
+Metadata.DICOffset = 0;
 
 ROI.N = 0; % number of regions of interest (N)
 ROI.Rects = []; % bounding rectangle
@@ -56,6 +57,8 @@ ROI.Normals = {}; % pixel coordinates for each segment; X by N cell
 ROI.NumPixels = [];
 ROI.YFPPixelMap = {};
 ROI.RedPixelMap = {};
+ROI.YFPDICMap = {};
+ROI.RedDICMap = {};
 
 Display.InputIndex = 0;
 Display.InputImage = 0;
@@ -329,11 +332,11 @@ function FluorescenceNormals()
 end
 
 % --- 
-function [pixel_col num_pixels] = DICNormals(j, files, col_pixels, extend, normals, normals_ext, x, y, w, h)
-  scaled_image = double(imread(fullfile(Metadata.Directory, Metadata.DICFiles(Metadata.DICStep*j-1).name), 'TIFF'));
+function [pixel_col center num_pixels] = DICNormals(j, files, col_pixels, extend, normals, normals_ext, x, y, w, h)
+  scaled_image = double(imread(fullfile(Metadata.Directory, Metadata.DICFiles(Metadata.DICStep*j+Metadata.DICOffset).name), 'TIFF'));
   scaled_image = scaled_image(y:y+h-1,x:x+w-1);
   
-  % find and locally close mask from DIC, then find points near poles
+  % Locally close mask from DIC, then find points near poles
   scaled_image = abs(scaled_image-mean2(scaled_image));
   mask = threshold(scaled_image, 50);
   ends = bwmorph(mask, 'thin', Inf);
@@ -344,7 +347,7 @@ function [pixel_col num_pixels] = DICNormals(j, files, col_pixels, extend, norma
   end
   scaled_image = mask.*abs(scaled_image);
   
-  % first approximation of the DIC poles
+  % First approximation of the DIC poles
   [v u] = find(extend > 0);
   ends = bwmorph(extend, 'endpoints');
   [end_r end_c] = find(ends > 0);
@@ -359,7 +362,7 @@ function [pixel_col num_pixels] = DICNormals(j, files, col_pixels, extend, norma
   head_t = min(t);
   tail_t = max(t);
   
-  % second approximation of the DIC poles
+  % Second approximation of the DIC poles
   if head_t > 1
     for k = head_t-1:-1:1
       line = cell2mat(normals_ext(1,k));
@@ -373,9 +376,9 @@ function [pixel_col num_pixels] = DICNormals(j, files, col_pixels, extend, norma
         head_t = k+1;
         break
       end
-      if k == 1 && this_len > 0
-        [j 1]
-      end
+%      if k == 1 && this_len > 0
+%        [j 1]
+%      end
     end
   end
   if tail_t < length(u)
@@ -391,27 +394,33 @@ function [pixel_col num_pixels] = DICNormals(j, files, col_pixels, extend, norma
         tail_t = k-1;
         break
       end
-      if k == length(u) && this_len > 0
-        [j 2]
-      end
+%      if k == length(u) && this_len > 0
+%        [j 2]
+%      end
     end
   end
   
-  if tail_t-head_t < 0.35*mean(col_pixels)
-    tail_t-head_t+1
-    figure;
-    imagesc(scaled_image+4000*extend);
-    title(num2str(j));
-  end
+  % Now we have an okay approximation of the cell poles from DIC, but they are 
+  % sometimes short; instead we use them to compute the "center" of the cell 
+  % (along the fluorescence retract), so after finding the pixelmap we can find 
+  % the values along an interval around the center.
+  
+  center = mean([head_t tail_t]);
+  
+%  if tail_t-head_t < 0.9*mean(col_pixels)
+%    figure;
+%    imagesc(scaled_image+10*mean(std(scaled_image))*extend);
+%    title(strcat(num2str(j), ' length ', num2str(tail_t-head_t+1)));
+%  end
   
   scaled_image = double(imread(fullfile(Metadata.Directory, files(j).name), 'TIFF'));
   scaled_image = scaled_image(y:y+h-1,x:x+w-1);
   
   num_pixels = tail_t-head_t+1;
 %  col_pixels = [col_pixels num_pixels];
-  pixel_col = zeros(num_pixels, 1);
-%  pixel_col = 640*ones(100, 1);
-  for k = head_t:tail_t % 1:num_pixels
+%  pixel_col = zeros(num_pixels, 1);
+  pixel_col = 700*ones(80, 1);
+  for k = head_t:tail_t%1:num_pixels
     line = cell2mat(normals(1,k));
     line_pixels = impixel(scaled_image, line(:,1), line(:,2));
     pixel_col(k-head_t+1) = mean(line_pixels(:,1));
@@ -432,6 +441,8 @@ function LoadStackButton_Callback(hObject, eventdata, handles)
     Metadata.NumRedFiles = length(Metadata.RedFiles);
     Metadata.NumDICFiles = length(Metadata.DICFiles);
     Metadata.DICStep = round(Metadata.NumDICFiles/Metadata.NumYFPFiles);
+    
+    Metadata.DICOffset = 0;
     
     Display.InputIndex = 1;
     set(GUI.Label_StackDir, 'String', Metadata.Directory);
@@ -635,15 +646,20 @@ function DICPixelMapButton_Callback(hObject, eventdata, handles)
     h = round(ROI.Rects(4*i));
     
     [contour retract ends] = KymoRetract(cell2mat(ROI.Images(1,i)));
-    [normals extend poles] = KymoNormals(retract, ends, cell2mat(ROI.Images(1,i)), 8, 25, 0);
-    [normals_ext extra1 extra2] = KymoNormals(retract, ends, ones(h,w), 8, 25, 15);
+    [normals extend poles] = KymoNormals(retract, ends, cell2mat(ROI.Images(1,i)), 15, 25, 0);
+    [normals_ext extra1 extra2] = KymoNormals(retract, ends, ones(h,w), 15, 25, 25);
+    
+    % TODO show ROI bounding box motion
     
     pixel_map = [];
     col_pixels = [];
     
+    % get center and num_pixels from DICNormals and plot the fluorescence data 
+    % as an interval around the center
+    
     tic;
     for j = 1:Metadata.NumYFPFiles
-      [pixel_col num_pixels] = DICNormals(j, Metadata.YFPFiles, col_pixels, extend, normals, normals_ext, x, y, w, h);
+      [pixel_col center num_pixels] = DICNormals(j, Metadata.YFPFiles, col_pixels, extend, normals, normals_ext, x, y, w, h);
       col_pixels = [col_pixels num_pixels];
       if ceil(j/5) == floor(j/5)
         status = j/Metadata.NumYFPFiles
@@ -667,7 +683,7 @@ function DICPixelMapButton_Callback(hObject, eventdata, handles)
     
     tic;
     for j = 1:Metadata.NumRedFiles
-      [pixel_col num_pixels] = DICNormals(j, Metadata.RedFiles, col_pixels, extend, normals, normals_ext, x, y, w, h);
+      [pixel_col center num_pixels] = DICNormals(j, Metadata.RedFiles, col_pixels, extend, normals, normals_ext, x, y, w, h);
       col_pixels = [col_pixels num_pixels];
       if ceil(j/5) == floor(j/5)
         status = j/Metadata.NumRedFiles
@@ -706,7 +722,5 @@ function UndockOutputButton_Callback(hObject, eventdata, handles)
   figure;
   imagesc(Display.OutputImage);
 end
-
-%  Utility functions
 
 end
