@@ -342,8 +342,12 @@ function [pixel_col center num_pixels mask] = DICNormals(j, files, col_pixels, e
   scaled_image = double(imread(fullfile(Metadata.Directory, Metadata.DICFiles(Metadata.DICStep*(j-1)+1+Metadata.DICOffset).name), 'TIFF'));
   scaled_image = scaled_image(y:y+h-1,x:x+w-1);
   
+  % Adjust the DIC contrast for a uniform threshold
+  scaled_image = scaled_image-mean2(scaled_image);
+  scaled_image = 1500*scaled_image./max(max(scaled_image));
+  
   % Locally close mask from DIC, then find points near poles
-  scaled_image = abs(scaled_image-mean2(scaled_image));
+  scaled_image = abs(scaled_image);
   mask = threshold(scaled_image, 50);
   mask = bwmorph(mask, 'dilate', 5);
   ends = bwmorph(mask, 'thin', Inf);
@@ -411,6 +415,8 @@ function [pixel_col center num_pixels mask] = DICNormals(j, files, col_pixels, e
   end
   
 %  [j head_t tail_t]
+  
+  % The following is now deprecated.
   
   % Now we have an okay approximation of the cell poles from DIC, but they are 
   % sometimes short; instead we use them to compute the "center" of the cell 
@@ -671,8 +677,7 @@ function DICPixelMapButton_Callback(hObject, eventdata, handles)
     centers = [];
     masks = {};
     
-    % get center and num_pixels from DICNormals and plot the fluorescence data 
-    % as an interval around the center
+    % TODO correct jitter
     
     tic;
     for j = 1:Metadata.NumYFPFiles
@@ -753,9 +758,9 @@ function DICPixelMapButton_Callback(hObject, eventdata, handles)
     title(strcat('Red/mCherry DIC ROI', num2str(i)));
     toc;
     
-    [savefile savepath] = uiputfile();
-    savefile, savepath
-    save(fullfile(savepath, savefile), 'masks');
+%    [savefile savepath] = uiputfile();
+%    savefile, savepath
+%    save(fullfile(savepath, savefile), 'masks');
   end
 end
 
@@ -764,6 +769,19 @@ function SaveButton_Callback(hObject, eventdata, handles)
   [savefile savepath] = uiputfile();
   savefile, savepath
   save(fullfile(savepath, savefile), 'Parameters', 'Metadata', 'ROI');
+  % TODO output readme file with .mat
+  readmefile = strcat(savefile, '_readme');
+  readme = fopen(fullfile(savepath, readmefile), 'w+');
+  fprintf(readme, 'Output: %s\n', fullfile(savepath, savefile));
+  fprintf(readme, 'Directory: %s\n', Metadata.Directory);
+  for i = 1:ROI.N
+    x = round(ROI.Rects(4*i-3));
+    y = round(ROI.Rects(4*i-2));
+    w = round(ROI.Rects(4*i-1));
+    h = round(ROI.Rects(4*i));
+    fprintf(readme, 'ROI %d: [%d %d %d %d]\n', i, x, y, w, h);
+  end
+  fclose(readme);
 end
 
 % --- 
