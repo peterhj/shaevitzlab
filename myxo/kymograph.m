@@ -127,6 +127,12 @@ GUI.Label_StackDir = uicontrol(...
   'String', '',...
   'Position', [1080,484,180,20]);
 
+GUI.Label_DICOffset = uicontrol(...
+  'Parent', GUI.f,...
+  'Style', 'edit',...
+  'String', '',...
+  'Position', [1080,484,180,20]);
+
 GUI.StackMenu = uicontrol(...
   'Parent', GUI.f,...
   'Callback', @StackMenu_Callback,...
@@ -333,7 +339,7 @@ end
 
 % --- 
 function [pixel_col center num_pixels mask] = DICNormals(j, files, col_pixels, extend, normals, normals_ext, x, y, w, h)
-  scaled_image = double(imread(fullfile(Metadata.Directory, Metadata.DICFiles(Metadata.DICStep*j+Metadata.DICOffset).name), 'TIFF'));
+  scaled_image = double(imread(fullfile(Metadata.Directory, Metadata.DICFiles(Metadata.DICStep*(j-1)+1+Metadata.DICOffset).name), 'TIFF'));
   scaled_image = scaled_image(y:y+h-1,x:x+w-1);
   
   % Locally close mask from DIC, then find points near poles
@@ -426,7 +432,7 @@ function [pixel_col center num_pixels mask] = DICNormals(j, files, col_pixels, e
   num_pixels = tail_t-head_t+1;
   col_pixels = [col_pixels num_pixels];
   pixel_col = zeros(num_pixels, 1);
-%  pixel_col = 640*ones(85, 1);
+%  pixel_col = 640*ones(100, 1);
   for k = head_t:tail_t%1:num_pixels
     line = cell2mat(normals(1,k));
     line_pixels = impixel(scaled_image, line(:,1), line(:,2));
