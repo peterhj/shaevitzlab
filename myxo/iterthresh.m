@@ -39,7 +39,7 @@ function [mask2d] = iterthresh(imIn);
   while ~done
     g = imIn >= T;
     Tnext = 0.5*(mean(imIn(g))+mean(imIn(~g)));
-    done = abs(T-Tnext) < 1e-3;
+    done = abs(T-Tnext) < T*1e-3;
     T = Tnext;
   end
   %mask2d = double(data2d(y+1:y+height,x+1:x+width)).*double(data2d(y+1:y+height,x+1:x+width) > T);

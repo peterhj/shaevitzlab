@@ -127,7 +127,8 @@ GUI.Label_StackDir = uicontrol(...
   'String', '',...
   'Position', [1080,484,180,20]);
 
-GUI.Label_DICOffset = uicontrol(...
+GUI.Label_ROIInput = uicontrol(...
+  'Visible', 'off',...
   'Parent', GUI.f,...
   'Style', 'edit',...
   'String', '',...
@@ -226,6 +227,8 @@ GUI.UndockOutputButton = uicontrol(...
   'Style', 'pushbutton',...
   'String', 'Right Graph',...
   'Position', [1180,160,80,20]);
+
+%GUI.UndockInputROIs = uicontrol(...);
 
 %  Initialization tasks
 xlim(GUI.InputGraph, [0,512]);
@@ -338,13 +341,16 @@ function FluorescenceNormals()
 end
 
 % --- 
-function [pixel_col center num_pixels mask] = DICNormals(j, files, col_pixels, extend, normals, normals_ext, x, y, w, h)
+function [head_t tail_t] = DICNormals(j, filter, col_pixels, extend, normals, normals_ext, x, y, w, h)
   scaled_image = double(imread(fullfile(Metadata.Directory, Metadata.DICFiles(Metadata.DICStep*(j-1)+1+Metadata.DICOffset).name), 'TIFF'));
   scaled_image = scaled_image(y:y+h-1,x:x+w-1);
   
   % Adjust the DIC contrast for a uniform threshold
+%  blur = imfilter(scaled_image, filter);
+%  scaled_image = scaled_image-blur;
   scaled_image = scaled_image-mean2(scaled_image);
-  scaled_image = 1500*scaled_image./max(max(scaled_image));
+%  scaled_image = 1000*scaled_image;
+  scaled_image = 1000*mean(std(scaled_image))*scaled_image./max(max(scaled_image));
   
   % Locally close mask from DIC, then find points near poles
   scaled_image = abs(scaled_image);
@@ -423,7 +429,7 @@ function [pixel_col center num_pixels mask] = DICNormals(j, files, col_pixels, e
   % (along the fluorescence retract), so after finding the pixelmap we can find 
   % the values along an interval around the center.
   
-  center = mean([head_t tail_t]);
+%  center = mean([head_t tail_t]);
   
 %  if tail_t-head_t < 0.9*mean(col_pixels)
 %    figure; plot(u,v);
@@ -432,18 +438,6 @@ function [pixel_col center num_pixels mask] = DICNormals(j, files, col_pixels, e
 %    title(strcat(num2str(j), ' length ', num2str(tail_t-head_t+1)));
 %  end
   
-  pixel_col = [];
-  scaled_image = double(imread(fullfile(Metadata.Directory, files(j).name), 'TIFF'));
-  scaled_image = scaled_image(y:y+h-1,x:x+w-1);
-  num_pixels = tail_t-head_t+1;
-  col_pixels = [col_pixels num_pixels];
-  pixel_col = zeros(num_pixels, 1);
-%  pixel_col = 640*ones(100, 1);
-  for k = head_t:tail_t%1:num_pixels
-    line = cell2mat(normals(1,k));
-    line_pixels = impixel(scaled_image, line(:,1), line(:,2));
-    pixel_col(k-head_t+1) = mean(line_pixels(:,1));
-  end
 end
 
 %  Callbacks
@@ -550,14 +544,16 @@ function ThresholdButton_Callback(hObject, eventdata, handles)
     Display.OutputImage = Display.OutputImage+double(imread(fullfile(Metadata.Directory, stack_files(i).name), 'TIFF'));
   end
   Display.Average = Display.OutputImage/num_files; %Display.Num;
+  mask = threshold(Display.Average, 100);
   for i = 1:ROI.N
     this_rect = ROI.Rects(1,4*i-3:4*i);
     x = round(this_rect(1));
     y = round(this_rect(2));
     w = round(this_rect(3));
     h = round(this_rect(4));
-    this_image = threshold(Display.Average(y:y+h-1,x:x+w-1), Parameters.MinConnectedComponents);
-    this_image = Display.Average(y:y+h-1,x:x+w-1).*double(this_image);
+%    this_image = threshold(Display.Average(y:y+h-1,x:x+w-1), 100);
+%    this_image = double(this_image.*Display.Average(y:y+h-1,x:x+w-1));
+    this_image = Display.Average(y:y+h-1,x:x+w-1).*mask(y:y+h-1,x:x+w-1);
     ROI.Images = [ROI.Images this_image];
   end
   Display.ROI = [Display.ROI ROI.Images];
@@ -664,9 +660,15 @@ function DICPixelMapButton_Callback(hObject, eventdata, handles)
     w = round(ROI.Rects(4*i-1));
     h = round(ROI.Rects(4*i));
     
+    fprintf(1, 'Starting DIC pixel map...\n');
+    fprintf(1, 'Runtime estimate: %f s\n', round(sqrt(w^2+h^2)/225*Metadata.NumYFPFiles));
+    
+    tic;
     [contour retract ends] = KymoRetract(cell2mat(ROI.Images(1,i)));
     [normals extend poles] = KymoNormals(retract, ends, cell2mat(ROI.Images(1,i)), 15, 25, 0);
     [normals_ext extra1 extra2] = KymoNormals(retract, ends, ones(h,w), 15, 25, 25);
+    toc;
+    
     [v u] = find(extend > 0);
     all_pixels = length(u);
     
@@ -677,23 +679,39 @@ function DICPixelMapButton_Callback(hObject, eventdata, handles)
     centers = [];
     masks = {};
     
-    % TODO correct jitter
+    filter = fspecial('gaussian', 40, 40);
     
     tic;
+    heads = [];
+    tails = [];
     for j = 1:Metadata.NumYFPFiles
-      [pixel_col center num_pixels mask] = DICNormals(j, Metadata.YFPFiles, col_pixels, extend, normals, normals_ext, x, y, w, h);
+      [head_t tail_t] = DICNormals(j, filter, col_pixels, extend, normals, normals_ext, x, y, w, h);
+      num_pixels = tail_t-head_t+1;
       col_pixels = [col_pixels num_pixels];
-      centers = [centers center];
-      masks = [masks mask];
-      if ceil(j/5) == floor(j/5)
-        status = j/Metadata.NumYFPFiles
+%      centers = [centers center];
+%      masks = [masks mask];
+      heads = [heads head_t];
+      tails = [tails tail_t];
+      
+%      pixel_col = [];
+      scaled_image = double(imread(fullfile(Metadata.Directory, Metadata.YFPFiles(j).name), 'TIFF'));
+      scaled_image = scaled_image(y:y+h-1,x:x+w-1);
+      pixel_col = 600*ones(all_pixels, 1);
+      for k = head_t:tail_t%1:num_pixels
+        line = cell2mat(normals(1,k));
+        line_pixels = impixel(scaled_image, line(:,1), line(:,2));
+        pixel_col(k) = mean(line_pixels(:,1));
       end
+      
       if j > 1
         map_size = size(pixel_map);
         min_length = min(map_size(1), length(pixel_col));
         pixel_map = [pixel_map(1:min_length,:) pixel_col(1:min_length,:)];
       else
         pixel_map = [pixel_col];
+      end
+      if ceil(j/5) == floor(j/5)
+        fprintf(1, 'Status: %f%%\n', 100*j/Metadata.NumYFPFiles);
       end
 %      scaled_image = double(imread(fullfile(Metadata.Directory, Metadata.YFPFiles(j).name), 'TIFF'));
 %      pixel_col = zeros(all_pixels, 1);
@@ -704,7 +722,81 @@ function DICPixelMapButton_Callback(hObject, eventdata, handles)
 %      end
 %      pixel_map = [pixel_map pixel_col];
     end
-    col_pixels, min(col_pixels)
+%    col_pixels, min(col_pixels)
+    toc;
+    fprintf(1, 'Minimal column: %d\n', min(col_pixels));
+    
+    % jitter correction
+    target_length = min(tails-heads)+1;
+    if tails(1)-heads(1)+1 > target_length
+      len_diff = tails(1)-heads(1)+1-target_length;
+      head_corr = round(len_diff/2);
+      tail_corr = len_diff-head_corr;
+      heads(1) = heads(1)+head_corr;
+      tails(1) = tails(1)-tail_corr;
+      num_pixels = tails(1)-heads(1)+1;
+      assert(num_pixels == target_length);
+    end
+%    new_pixel_map = [];
+    new_pixel_map = pixel_map(heads(1):tails(1),1);
+    for j = 2:Metadata.NumYFPFiles
+      this_length = tails(j)-heads(j)+1;
+      len_diff = this_length-target_length;
+      if len_diff > 0
+%        if abs(heads(j)-heads(j-1)) > len_diff/2
+%          heads(j) = heads(j)-abs(heads(j)-heads(j-1))+abs(tails(j)-tails(j-1));
+%          len_diff = tails(j)-heads(j)+1-target_length;
+%          head_corr = round(len_diff/2);
+%          tail_corr = len_diff-head_corr;
+%          heads(j) = heads(j)+head_corr;
+%          tails(j) = tails(j)-tail_corr;
+%        elseif abs(tails(j)-tails(j-1)) > len_diff/2
+%          tails(j) = tails(j)-abs(heads(j)-heads(j-1));
+%          len_diff = tails(j)-heads(j)+1-target_length;
+%          head_corr = round(len_diff/2);
+%          tail_corr = len_diff-head_corr;
+%          heads(j) = heads(j)+head_corr;
+%          tails(j) = tails(j)-tail_corr;
+%        else
+%          head_corr = round(len_diff/2);
+%          tail_corr = len_diff-head_corr;
+%          heads(j) = heads(j)+head_corr;
+%          tails(j) = tails(j)-tail_corr;
+%        end
+        % jitter correction by cross correlation
+        
+        ldiffs = [];
+        last_col = new_pixel_map(:,j-1);
+        last_col = (last_col-mean(last_col))/std(last_col);
+        for k = 0:len_diff-1
+          this_col = pixel_map(heads(j)+k:heads(j)+target_length+k-1,j);
+          this_col = (this_col-mean(this_col))/std(this_col);
+          ldiff = this_col.*last_col;
+          ldiffs = [ldiffs sum(ldiff)];
+        end
+        heads(j) = heads(j)+find(ldiffs == max(ldiffs))-1;
+        tails(j) = heads(j)+target_length-1;
+        
+%        ldiffs = [];
+%        last_col = new_pixel_map(:,j-1);
+%        last_col = (last_col-mean(last_col))/std(last_col);
+%        for k = 1:all_pixels-target_length+1 %0:len_diff-1
+%          this_col = pixel_map(k:target_length+k-1,j);
+%          this_col = (this_col-mean(this_col))/std(this_col);
+%          ldiff = this_col.*last_col;
+%          ldiffs = [ldiffs sum(ldiff)];
+%        end
+%        ldiffs
+%        heads(j) = find(ldiffs == max(ldiffs));
+%        tails(j) = heads(j)+target_length-1;
+        
+      end
+      num_pixels = tails(j)-heads(j)+1;
+      assert(num_pixels == target_length);
+      new_pixel_map = [new_pixel_map pixel_map(heads(j):tails(j),j)];
+    end
+    pixel_map = new_pixel_map;
+    
 %    centers = round(centers);
 %    width = mean(num_pixels);
 %    halfw = floor(width/2);
@@ -712,29 +804,46 @@ function DICPixelMapButton_Callback(hObject, eventdata, handles)
 %    for j = 1:Metadata.NumYFPFiles
 %      pixel_map = [pixel_map pixel_map(centers(j)-halfw:centers(j)+halfw,j)];
 %    end
+    
     figure;
-    imagesc(pixel_map);
+    imagesc(pixel_map); %(max_head_t:min_tail_t,:)
     title(strcat('YFP/GFP DIC ROI', num2str(i)));
-    toc;
     
     pixel_map = [];
     col_pixels = [];
     centers = [];
     
     tic;
+    max_head_t = 0;
+    min_tail_t = all_pixels+1;
     for j = 1:Metadata.NumRedFiles
-      [pixel_col center num_pixels mask] = DICNormals(j, Metadata.RedFiles, col_pixels, extend, normals, normals_ext, x, y, w, h);
+      [head_t tail_t] = DICNormals(j, filter, col_pixels, extend, normals, normals_ext, x, y, w, h);
+      num_pixels = tail_t-head_t+1;
       col_pixels = [col_pixels num_pixels];
-      centers = [centers center];
-      if ceil(j/5) == floor(j/5)
-        status = j/Metadata.NumRedFiles
+%      centers = [centers center];
+      heads = [heads head_t];
+      tails = [tails tail_t];
+      
+%      pixel_col = [];
+      scaled_image = double(imread(fullfile(Metadata.Directory, Metadata.RedFiles(j).name), 'TIFF'));
+      scaled_image = scaled_image(y:y+h-1,x:x+w-1);
+      pixel_col = 600*ones(all_pixels, 1);
+      for k = head_t:tail_t%1:num_pixels
+        line = cell2mat(normals(1,k));
+        line_pixels = impixel(scaled_image, line(:,1), line(:,2));
+        pixel_col(k) = mean(line_pixels(:,1));
       end
+      
       if j > 1
         map_size = size(pixel_map);
         min_length = min(map_size(1), length(pixel_col));
         pixel_map = [pixel_map(1:min_length,:) pixel_col(1:min_length,:)];
       else
         pixel_map = [pixel_col];
+      end
+      
+      if ceil(j/5) == floor(j/5)
+        fprintf(1, 'Status: %f%%\n', 100*j/Metadata.NumRedFiles);
       end
 %      scaled_image = double(imread(fullfile(Metadata.Directory, Metadata.RedFiles(j).name), 'TIFF'));
 %      pixel_col = zeros(all_pixels, 1);
@@ -745,7 +854,78 @@ function DICPixelMapButton_Callback(hObject, eventdata, handles)
 %      end
 %      pixel_map = [pixel_map pixel_col];
     end
-    col_pixels, min(col_pixels)
+%    col_pixels, min(col_pixels)
+    toc;
+    fprintf(1, 'Minimal column: %d\n', min(col_pixels));
+    
+    % jitter correction
+    target_length = min(tails-heads)+1;
+    if tails(1)-heads(1)+1 > target_length
+      len_diff = tails(1)-heads(1)+1-target_length;
+      head_corr = round(len_diff/2);
+      tail_corr = len_diff-head_corr;
+      heads(1) = heads(1)+head_corr;
+      tails(1) = tails(1)-tail_corr;
+    end
+    new_pixel_map = pixel_map(heads(1):tails(1),1);
+    for j = 2:Metadata.NumRedFiles
+      this_length = tails(j)-heads(j)+1;
+      len_diff = this_length-target_length;
+      if len_diff > 0
+%        if abs(heads(j)-heads(j-1)) > len_diff/2
+%          heads(j) = heads(j)+abs(tails(j)-tails(j-1));
+%          len_diff = tails(j)-heads(j)+1-target_length;
+%          head_corr = round(len_diff/2);
+%          tail_corr = len_diff-head_corr;
+%          heads(j) = heads(j)+head_corr;
+%          tails(j) = tails(j)-tail_corr;
+%        elseif abs(tails(j)-tails(j-1)) > len_diff/2
+%          tails(j) = tails(j)-abs(tails(j)-tails(j-1))+abs(heads(j)-heads(j-1));
+%          len_diff = tails(j)-heads(j)+1-target_length;
+%          head_corr = round(len_diff/2);
+%          tail_corr = len_diff-head_corr;
+%          heads(j) = heads(j)+head_corr;
+%          tails(j) = tails(j)-tail_corr;
+%        else
+%          head_corr = round(len_diff/2);
+%          tail_corr = len_diff-head_corr;
+%          heads(j) = heads(j)+head_corr;
+%          tails(j) = tails(j)-tail_corr;
+%        end
+        
+        % jitter correction by (global) cross correlation
+        ldiffs = [];
+        last_col = new_pixel_map(:,j-1);
+        last_col = (last_col-mean(last_col))/std(last_col);
+        for k = 0:len_diff-1
+          this_col = pixel_map(heads(j)+k:heads(j)+target_length+k-1,j);
+          this_col = (this_col-mean(this_col))/std(this_col);
+          ldiff = this_col.*last_col;
+          ldiffs = [ldiffs sum(ldiff)];
+        end
+        heads(j) = heads(j)+find(ldiffs == max(ldiffs))-1;
+        tails(j) = heads(j)+target_length-1;
+        
+%        ldiffs = [];
+%        last_col = new_pixel_map(:,j-1);
+%        last_col = (last_col-mean(last_col))/std(last_col);
+%        for k = 1:all_pixels-target_length+1 %0:len_diff-1
+%          this_col = pixel_map(k:target_length+k-1,j);
+%          this_col = (this_col-mean(this_col))/std(this_col);
+%          ldiff = this_col.*last_col;
+%          ldiffs = [ldiffs sum(ldiff)];
+%        end
+%        ldiffs
+%        heads(j) = find(ldiffs == max(ldiffs));
+%        tails(j) = heads(j)+target_length-1;
+        
+      end
+      num_pixels = tails(j)-heads(j)+1;
+      assert(num_pixels == target_length);
+      new_pixel_map = [new_pixel_map pixel_map(heads(j):tails(j),j)];
+    end
+    pixel_map = new_pixel_map;
+    
 %    centers = round(centers);
 %    width = mean(num_pixels);
 %    halfw = floor(width/2);
@@ -753,10 +933,10 @@ function DICPixelMapButton_Callback(hObject, eventdata, handles)
 %    for j = 1:Metadata.NumRedFiles
 %      pixel_map = [pixel_map pixel_map(centers(j)-halfw:centers(j)+halfw,j)];
 %    end
+    
     figure;
-    imagesc(pixel_map);
+    imagesc(pixel_map); %(max_head_t:min_tail_t,:)
     title(strcat('Red/mCherry DIC ROI', num2str(i)));
-    toc;
     
 %    [savefile savepath] = uiputfile();
 %    savefile, savepath
