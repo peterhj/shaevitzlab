@@ -15,7 +15,7 @@
 % Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307,
 % USA.
 
-function [mask2d] = iterthresh(imIn);
+function [mask2d T] = iterthresh(imIn);
 %  bound = 1e-6; % choose some mimimum bound
 %  mask2d = data2d(y+1:y+height,x+1:x+width);
 %  % Get initial average
@@ -39,7 +39,7 @@ function [mask2d] = iterthresh(imIn);
   while ~done
     g = imIn >= T;
     Tnext = 0.5*(mean(imIn(g))+mean(imIn(~g)));
-    done = abs(T-Tnext) < T*1e-3;
+    done = abs(T-Tnext) < T*1e-3; % T*1e-3;
     T = Tnext;
   end
   %mask2d = double(data2d(y+1:y+height,x+1:x+width)).*double(data2d(y+1:y+height,x+1:x+width) > T);

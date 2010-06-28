@@ -15,8 +15,9 @@
 % Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307,
 % USA.
 
-function [mask] = threshold(uv, c)
-  mask = iterthresh(uv);
+function mask = threshold(uv, c)
+  [mask T] = iterthresh(uv);
+%  mask = im2bw(uv, graythresh(uv));
   mask = bwareaopen(mask, c);
   mask = bwmorph(mask, 'spur');
   mask = bwmorph(mask, 'majority');
