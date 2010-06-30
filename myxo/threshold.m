@@ -17,6 +17,7 @@
 
 function mask = threshold(uv, c)
   [mask T] = iterthresh(uv);
+%  [mask T] = iterthresh(1000*double(uv-min(uv(:)))/std(uv(:)));
 %  mask = im2bw(uv, graythresh(uv));
   mask = bwareaopen(mask, c);
   mask = bwmorph(mask, 'spur');

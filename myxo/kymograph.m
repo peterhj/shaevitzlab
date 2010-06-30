@@ -184,6 +184,13 @@ GUI.DICPixelMapButton = uicontrol(...
   'String', 'DIC Map',...
   'Position', [1080,330,80,20]);
 
+GUI.DICFrameMapButton = uicontrol(...
+  'Parent', GUI.f,...
+  'Callback', @DICFrameMap_Callback,...
+  'Style', 'pushbutton',...
+  'String', 'DIC Map 2',...
+  'Position', [1180,330,80,20]);
+
 GUI.Label_YFPFrames = uicontrol(...
   'Parent', GUI.f,...
   'Style', 'text',...
@@ -228,8 +235,6 @@ GUI.UndockOutputButton = uicontrol(...
   'Style', 'pushbutton',...
   'String', 'Right Graph',...
   'Position', [1180,160,80,20]);
-
-%GUI.UndockInputROIs = uicontrol(...);
 
 %  Initialization tasks
 xlim(GUI.InputGraph, [0,512]);
@@ -440,7 +445,7 @@ function [pixel_map heads tails] = DICCCNormals(extend, normals, normals_ext, x,
     
     % Adjust the DIC contrast for a uniform threshold
     scaled_image = scaled_image-mean2(scaled_image);
-    scaled_image = 1000*mean(std(scaled_image))*scaled_image./max(max(scaled_image));
+    scaled_image = 10000*scaled_image/std(scaled_image(:));
     
     % Locally close mask from DIC, then find points near poles
     scaled_image = abs(scaled_image);
@@ -521,13 +526,18 @@ function [pixel_map heads tails] = DICCCNormals(extend, normals, normals_ext, x,
       for k = 1:num_intersect
         t = [t intersect(find(v == corr_v(k)), find(u == corr_u(k)))];
       end
-      if head_t > min(t)-10
-        head_t = max(1, min(t)-5);
+%      if head_t > min(t)-10
+%        head_t = max(1, min(t)-8);
+%      end
+%      if tail_t < max(t)+10
+%        tail_t = min(all_pixels, max(t)+8);
+%      end
+      if head_t > min(t)
+        head_t = max(1, min(t)-6);
       end
-      if tail_t < max(t)+10
-        tail_t = min(all_pixels, max(t)+5);
+      if tail_t < max(t)
+        tail_t = min(all_pixels, max(t)+6);
       end
-%      fprintf(1, '%d %d\n', head_t, tail_t);
     end
     
     num_pixels = tail_t-head_t+1;
@@ -551,17 +561,22 @@ function [pixel_map heads tails] = DICCCNormals(extend, normals, normals_ext, x,
     else
       pixel_map = [pixel_col];
     end
-    if ceil(j/5) == floor(j/5)
-      fprintf(1, 'Status: %f%%\n', 100*j/n);
-    end
+%    if ceil(j/5) == floor(j/5)
+%      fprintf(1, 'Status: %f%%\n', 100*j/n);
+%    end
   end
-  pixel_map = MapAlign(pixel_map, heads, tails, n);
+%  pm = pixel_map;
+  target_length = min(tails-heads)-5;
+  [pixel_map heads tails] = MapAlign(pixel_map, target_length, heads, tails, n);
+%  for j = 1:n
+%    pm(heads(j):tails(j),j) = 5*pm(heads(j):tails(j),j);
+%  end
+%  figure; imagesc(pm);
 end
 
 % --- 
-function [new_pixel_map] = MapAlign(pixel_map, heads, tails, n)
+function [new_pixel_map heads tails] = MapAlign(pixel_map, target_length, heads, tails, n)
   % jitter correction by cross correlation
-  target_length = min(tails-heads)+1;
   if tails(1)-heads(1)+1 > target_length
     len_diff = tails(1)-heads(1)+1-target_length;
     head_corr = round(len_diff/2);
@@ -575,21 +590,59 @@ function [new_pixel_map] = MapAlign(pixel_map, heads, tails, n)
     len_diff = this_length-target_length;
     if len_diff > 0
       ldiffs = [];
+      rdiffs = [];
       last_col = new_pixel_map(:,j-1);
       last_col = (last_col-mean(last_col))/std(last_col);
-      for k = 0:len_diff-1
+      for k = 0:len_diff
         this_col = pixel_map(heads(j)+k:heads(j)+target_length+k-1,j);
         this_col = (this_col-mean(this_col))/std(this_col);
-        % this correlation parameter is tricky...
         ldiff = (this_col.*last_col);
         ldiffs = [ldiffs sum(ldiff)];
       end
-      heads(j) = heads(j)+find(ldiffs == max(ldiffs))-1;
-      tails(j) = heads(j)+target_length-1;
+%      for k = 0:len_diff
+%        this_col = pixel_map(heads(j)+target_length+k-1:-1:heads(j)+k,j);
+%        this_col = (this_col-mean(this_col))/std(this_col);
+%        rdiff = (this_col.*last_col);
+%        rdiffs = [ldiffs sum(ldiff)];
+%      end
+      ltop = find(ldiffs == max(ldiffs));
+%      rtop = find(rdiffs == max(rdiffs));
+%      if max(ldiffs) > max(rdiffs)
+        heads(j) = heads(j)+round(mean(ltop))-1;
+        tails(j) = heads(j)+target_length-1;
+%        interval = 1;
+%      else
+%        heads(j) = tails(j)-round(mean(rtop))-1;
+%        tails(j) = heads(j)-target_length-1;
+%        interval = -1;
+%      end
     end
-    num_pixels = tails(j)-heads(j)+1;
-    assert(num_pixels == target_length);
     new_pixel_map = [new_pixel_map pixel_map(heads(j):tails(j),j)];
+  end
+end
+
+% --- 
+function [offset] = LinearAlign(old, new)
+  if length(new) > length(old)
+    static = old;
+    moving = new;
+  else
+    static = new;
+    moving = old;
+  end
+  ldiffs = [];
+  last_col = (static-mean(static))/std(static);
+  this_col = (moving-mean(moving))/std(moving);
+  min_length = min(length(static), length(moving));
+  for i = 1:length(moving)-length(static)+1
+    ldiff = this_col(i:min_length-1).*last_col;
+    ldiffs = [ldiffs ldiff];
+  end
+  top = find(ldiffs == max(ldiffs));
+  if length(new) > length(old)
+    offset = top-1;
+  else
+    offset = 1-top;
   end
 end
 
@@ -699,16 +752,17 @@ function ThresholdButton_Callback(hObject, eventdata, handles)
     Display.OutputImage = Display.OutputImage+double(imread(fullfile(Metadata.Directory, stack_files(i).name), 'TIFF'));
   end
   Display.Average = Display.OutputImage/num_files; %Display.Num;
-%  mask = threshold(Display.Average, 100);
+  mask = threshold(Display.Average, 100);
   for i = 1:ROI.N
     this_rect = ROI.Rects(1,4*i-3:4*i);
     x = round(this_rect(1));
     y = round(this_rect(2));
     w = round(this_rect(3));
     h = round(this_rect(4));
-%    this_image = Display.Average(y:y+h-1,x:x+w-1).*mask(y:y+h-1,x:x+w-1);
-    this_image = threshold(Display.Average(y:y+h-1,x:x+w-1), 100);
-    this_image = double(this_image.*Display.Average(y:y+h-1,x:x+w-1));
+    this_mask = mask(y:y+h-1,x:x+w-1).*bwareaopen(mask(y:y+h-1,x:x+w-1), 400);
+    this_image = Display.Average(y:y+h-1,x:x+w-1).*this_mask;
+%    this_image = threshold(Display.Average(y:y+h-1,x:x+w-1), 100);
+%    this_image = double(this_image.*Display.Average(y:y+h-1,x:x+w-1));
     ROI.Images = [ROI.Images this_image];
   end
   Display.ROI = [Display.ROI ROI.Images];
@@ -828,11 +882,9 @@ function DICPixelMapButton_Callback(hObject, eventdata, handles)
     fprintf(1, 'Starting DIC pixel map...\n');
     fprintf(1, 'Runtime estimate: %f s\n', round(sqrt(w^2+h^2)/225*Metadata.NumYFPFiles));
     
-%    tic;
     [contour retract ends] = KymoRetract(cell2mat(ROI.Images(1,i)));
     [normals extend poles] = KymoNormals(retract, ends, cell2mat(ROI.Images(1,i)), 15, 25, 0);
     [normals_ext extra1 extra2] = KymoNormals(retract, ends, ones(h,w), 15, 25, 25);
-%    toc;
     
     [v u] = find(extend > 0);
     all_pixels = length(u);
@@ -978,6 +1030,185 @@ function DICPixelMapButton_Callback(hObject, eventdata, handles)
 end
 
 % --- 
+function DICFrameMap_Callback(hObject, eventdata, handles)
+  % Find framewise retracts of a cell using correlation and edge detection
+  for i = 1:ROI.N
+    
+    x = round(ROI.Rects(4*i-3));
+    y = round(ROI.Rects(4*i-2));
+    w = round(ROI.Rects(4*i-1));
+    h = round(ROI.Rects(4*i));
+    
+    circle10 = double(imread('data/circle10.png', 'PNG'));
+    circle10 = circle10/max(circle10(:));
+    
+    pixel_map = [];
+    lengths = [];
+    heads = [];
+    tails = [];
+    
+    fprintf(1, 'Starting DIC framewise map...\n');
+    
+    for j = 1:Metadata.NumYFPFiles
+      
+      full_image = double(imread(fullfile(Metadata.Directory, Metadata.DICFiles(Metadata.DICStep*(j-1)+1).name), 'TIFF'));
+      scaled_image = full_image(y:y+h-1,x:x+w-1);
+      scaled_image = scaled_image-mean2(scaled_image);
+      scaled_image = abs(filter2(circle10, scaled_image));
+      scaled_image = scaled_image.^2;
+      
+      mask = edge(scaled_image, 'sobel')+edge(scaled_image, 'prewitt')+edge(scaled_image, 'log');
+      mask = bwareaopen(mask > 0, 10);
+      
+      ends = bwmorph(mask, 'endpoints');
+      [v u] = find(ends > 0);
+      for k = 1:length(u)
+        mask = localclose(mask, [u(k) v(k)], 7);
+      end
+      mask = imfill(mask, 'holes');
+      mask = bwareaopen(mask, 100);
+      
+%      ends = bwmorph(mask, 'endpoints');
+%      [v u] = find(ends > 0);
+%      for k = 1:length(u)
+%        mask = localclose(mask, [u(k) v(k)], 30);
+%      end
+%      mask = bwmorph(mask, 'close');
+      
+      % If it doesn't work the first time, throw more convex hulls at it.
+      contour = edge(mask, 'canny');
+      [v u] = find(contour > 0);
+      t = convhull(u, v);
+      for k = 1:length(t)-1
+        [x1 x2 x3 vv uu] = bresenham(contour, [u(k) v(k); u(k+1) v(k+1)], 0);
+        for l = 1:length(uu)
+          contour(vv(l),uu(l)) = 1;
+        end
+      end
+      [x1 x2 x3 vv uu] = bresenham(contour, [u(1) v(1); u(length(t)) v(length(t))], 0);
+      for l = 1:length(uu)
+        contour(vv(l),uu(l)) = 1;
+      end
+      mask = imfill(contour, 'holes');
+      
+%      contour = edge(mask, 'canny');
+%      [v u] = find(contour > 0);
+%      t = convhull(u, v);
+%      for k = 1:length(t)-1
+%        [x1 x2 x3 vv uu] = bresenham(contour, [u(k) v(k); u(k+1) v(k+1)], 0);
+%        for l = 1:length(uu)
+%          contour(vv(l),uu(l)) = 1;
+%        end
+%      end
+%      [x1 x2 x3 vv uu] = bresenham(contour, [u(1) v(1); u(length(t)) v(length(t))], 0);
+%      for l = 1:length(uu)
+%        contour(vv(l),uu(l)) = 1;
+%      end
+%      mask = imfill(contour, 'holes');
+%      
+%      contour = edge(mask, 'canny');
+%      [v u] = find(contour > 0);
+%      t = convhull(u, v);
+%      for k = 1:length(t)-1
+%        [x1 x2 x3 vv uu] = bresenham(contour, [u(k) v(k); u(k+1) v(k+1)], 0);
+%        for l = 1:length(uu)
+%          contour(vv(l),uu(l)) = 1;
+%        end
+%      end
+%      [x1 x2 x3 vv uu] = bresenham(contour, [u(1) v(1); u(length(t)) v(length(t))], 0);
+%      for l = 1:length(uu)
+%        contour(vv(l),uu(l)) = 1;
+%      end
+%      mask = imfill(contour, 'holes');
+%      
+%      contour = edge(mask, 'canny');
+%      [v u] = find(contour > 0);
+%      t = convhull(u, v);
+%      for k = 1:length(t)-1
+%        [x1 x2 x3 vv uu] = bresenham(contour, [u(k) v(k); u(k+1) v(k+1)], 0);
+%        for l = 1:length(uu)
+%          contour(vv(l),uu(l)) = 1;
+%        end
+%      end
+%      [x1 x2 x3 vv uu] = bresenham(contour, [u(1) v(1); u(length(t)) v(length(t))], 0);
+%      for l = 1:length(uu)
+%        contour(vv(l),uu(l)) = 1;
+%      end
+%      mask = imfill(contour, 'holes');
+      
+      mask = bwareaopen(mask, 10);
+%      mask = bwmorph(mask, 'majority');
+      pad = 10;
+      mask = padarray(mask, [pad pad]);
+      se = strel('disk', 4);
+      mask = imclose(mask, se);
+      mask = mask(1+pad:end-pad,1+pad:end-pad);
+      
+%      figure;
+%      imagesc(mask);
+      
+      retract = bwmorph(mask, 'thin', Inf);
+      retract = bwmorph(retract, 'spur');
+      ends = bwmorph(retract, 'branchpoints');
+      [v u] = find(ends > 0);
+      for k = 1:length(u)
+        retract = localclose(retract, [u(k) v(k)], 10);
+      end
+      retract = bwmorph(retract, 'thicken', 1);
+      retract = bwmorph(retract, 'thin', 1);
+      retract = bwmorph(retract, 'spur');
+      retract = bwmorph(retract, 'thin', Inf);
+      retract = bwmorph(retract, 'spur');
+      ends = bwmorph(retract, 'endpoints');
+      [v u] = find(ends > 0);
+      
+      if length(u) ~= 2
+        [u v]
+        figure;
+        imagesc(mask);
+        figure;
+        imagesc(retract);
+      end
+      assert(2 <= length(u));
+      
+      [normals extend poles] = KymoNormals(retract, [u v], mask, 15, 18, 0);
+      
+      full_image = double(imread(fullfile(Metadata.Directory, Metadata.YFPFiles(j).name), 'TIFF'));
+      scaled_image = full_image(y:y+h-1,x:x+w-1);
+      
+      num_pixels = length(normals);
+%      pixel_col = zeros(num_pixels, 1);
+      pixel_col = zeros(w+h, 1);
+      for k = 1:num_pixels
+        line = cell2mat(normals(1,k));
+        pixels = impixel(scaled_image, line(:,1), line(:,2));
+        pixel_col(k) = mean(pixels(:,1));
+      end
+      lengths = [lengths num_pixels];
+      min_length = min(lengths);
+      heads = [heads 1];
+      tails = [tails num_pixels];
+%      if j > 1
+        
+%      end
+      pixel_map = [pixel_map pixel_col];
+      
+      if (j/5 == round(j/5))
+        fprintf(1, 'Completed: %f%%...\n', 100*j/Metadata.NumYFPFiles);
+      end
+      
+    end
+    
+    [pixel_map heads tails] = MapAlign(pixel_map, min_length, heads, tails, Metadata.NumYFPFiles);
+    
+    fprintf(1, 'Done.\n');
+    figure;
+    imagesc(pixel_map);
+    
+  end
+end
+
+% --- 
 function SaveButton_Callback(hObject, eventdata, handles)
   [savefile savepath] = uiputfile();
   savefile, savepath
@@ -1010,4 +1241,4 @@ function UndockOutputButton_Callback(hObject, eventdata, handles)
   imagesc(Display.OutputImage);
 end
 
-end
+end % kymograph
