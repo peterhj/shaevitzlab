@@ -58,6 +58,10 @@ ROI.YFPDICMap = {};
 ROI.RedDICMap = {};
 ROI.YFPDICEnds = {};
 ROI.RedDICEnds = {};
+ROI.YFPFluorescenceFigures = {};
+ROI.RedFluorescenceFigures = {};
+ROI.YFPDICFigures = {};
+ROI.RedDICFigures = {};
 
 Display.InputIndex = 0;
 Display.InputImage = 0;
@@ -788,6 +792,8 @@ function PixelMapButton_Callback(hObject, eventdata, handles)
   ROI.NumPixels = []; % only initialized here
   ROI.YFPPixelMap = {};
   ROI.RedPixelMap = {};
+  ROI.YFPFluorescenceFigures = {};
+  ROI.RedFluorescenceFigures = {};
   Display.ROI = {};
   for i = 1:ROI.N
     [contour retract ends] = KymoRetract(cell2mat(ROI.Images(1,i)));
@@ -832,9 +838,11 @@ function PixelMapButton_Callback(hObject, eventdata, handles)
       end
       pixel_map = [pixel_map pixel_col];
     end
-    figure
+    
+    temp = figure;
     imagesc(pixel_map);
     title(strcat('YFP/GFP Fluorescence ROI', num2str(i)));
+    saveas(temp, fullfile(Metadata.Directory, strcat('yfp_fl_', num2str(i), '.png')), 'png');
     ROI.YFPPixelMap = [ROI.YFPPixelMap pixel_map];
     
 %    pixel_map = [];
@@ -860,9 +868,11 @@ function PixelMapButton_Callback(hObject, eventdata, handles)
       end
       pixel_map = [pixel_map pixel_col];
     end
-    figure
+    
+    temp = figure;
     imagesc(pixel_map);
     title(strcat('Red/mCherry Fluorescence ROI', num2str(i)));
+    saveas(temp, fullfile(Metadata.Directory, strcat('red_fl_', num2str(i), '.png')), 'png');
     ROI.RedPixelMap = [ROI.RedPixelMap pixel_map];
   end
   UpdateOutputGraph(cell2mat(Display.ROI(1,1)));
@@ -880,6 +890,8 @@ function DICPixelMapButton_Callback(hObject, eventdata, handles)
   ROI.RedDICMap = {};
   ROI.YFPDICEnds = {};
   ROI.RedDICEnds = {};
+  ROI.YFPDICFigures = {};
+  ROI.RedDICFigures = {};
   for i = 1:ROI.N
     x = round(ROI.Rects(4*i-3));
     y = round(ROI.Rects(4*i-2));
@@ -958,9 +970,11 @@ function DICPixelMapButton_Callback(hObject, eventdata, handles)
 %      pixel_map = [pixel_map pixel_map(centers(j)-halfw:centers(j)+halfw,j)];
 %    end
     
-    figure;
+    temp = figure;
     imagesc(pixel_map); %(max_head_t:min_tail_t,:)
     title(strcat('YFP/GFP DIC ROI', num2str(i)));
+    saveas(temp, fullfile(Metadata.Directory, strcat('yfp_dic_', num2str(i), '.png')), 'png');
+    
     ROI.YFPDICMap = [ROI.YFPDICMap pixel_map];
     ROI.YFPDICEnds = [ROI.YFPDICEnds [heads; tails]];
     
@@ -1024,9 +1038,12 @@ function DICPixelMapButton_Callback(hObject, eventdata, handles)
 %      pixel_map = [pixel_map pixel_map(centers(j)-halfw:centers(j)+halfw,j)];
 %    end
     
-    figure;
+    temp = figure;
     imagesc(pixel_map); %(max_head_t:min_tail_t,:)
     title(strcat('Red/mCherry DIC ROI', num2str(i)));
+    saveas(temp, fullfile(Metadata.Directory, strcat('red_dic_', num2str(i), '.png')), 'png');
+    saveas(temp, fullfile(Metadata.Directory, strcat('yfp_fl_', num2str(i), '.png')), 'png');
+    
     ROI.RedDICMap = [ROI.RedDICMap pixel_map];
     ROI.RedDICEnds = [ROI.RedDICEnds [heads; tails]];
     
@@ -1204,30 +1221,55 @@ function SaveButton_Callback(hObject, eventdata, handles)
     overview_image(y+h-1,x:x+w-1) = 0;
     overview_image(y:y+h-1,x) = 0;
     overview_image(y:y+h-1,x+w-1) = 0;
-    try
-      this_image = cell2mat(ROI.YFPPixelMap(1,i));
-      this_image = uint8(255*this_image/max(this_image(:)));
-      imwrite(this_image, fullfile(savepath, strcat('yfp_fl_',num2str(i),'.tif')), 'tif');
-      imwrite(this_image, fullfile(savepath, strcat('yfp_fl_',num2str(i),'.png')), 'png');
-      this_image = cell2mat(ROI.RedPixelMap(1,i));
-      this_image = uint8(255*this_image/max(this_image(:)));
-      imwrite(this_image, fullfile(savepath, strcat('red_fl_',num2str(i),'.tif')), 'tif');
-      imwrite(this_image, fullfile(savepath, strcat('red_fl_',num2str(i),'.png')), 'png');
-    catch exception
-      % nothing
-    end
-    try
-      this_image = cell2mat(ROI.YFPDICMap(1,i));
-      this_image = uint8(255*this_image/max(this_image(:)));
-      imwrite(this_image, fullfile(savepath, strcat('yfp_dic_',num2str(i),'.tif')), 'tif');
-      imwrite(this_image, fullfile(savepath, strcat('yfp_dic_',num2str(i),'.png')), 'png');
-      this_image = cell2mat(ROI.RedDICMap(1,i));
-      this_image = uint8(255*this_image/max(this_image(:)));
-      imwrite(this_image, fullfile(savepath, strcat('red_dic_',num2str(i),'.tif')), 'tif');
-      imwrite(this_image, fullfile(savepath, strcat('red_dic_',num2str(i),'.png')), 'png');
-    catch exception
-      % nothing
-    end
+%    try
+%      saveas((ROI.YFPFluorescenceFigures(1,i)), strcat('yfp_fl_',num2str(i),'.png'), 'png');
+%    catch exception
+%    end
+%    try
+%      saveas((ROI.RedFluorescenceFigures(1,i)), strcat('red_fl_',num2str(i),'.png'), 'png');
+%    catch exception
+%    end
+%    try
+%      saveas((ROI.YFPDICFigures(1,i)), strcat('yfp_dic_',num2str(i),'.png'), 'png');
+%    catch exception
+%    end
+%    try
+%      saveas((ROI.RedDICFigures(1,i)), strcat('red_dic_',num2str(i),'.png'), 'png');
+%    catch exception
+%    end
+%    try
+%      temp = figure('Visible', 'off');
+%      imagesc(cell2mat(ROI.YFPPixelMap(1,i)));
+%      title(strcat('YFP/GFP Fluorescence ROI', num2str(i)));
+%      print('-dpng', fullfile(savepath, strcat('yfp_fl_',num2str(i),'.png')));
+%      print('-dtif', fullfile(savepath, strcat('yfp_fl_',num2str(i),'.tif')));
+%    catch exception
+%    end
+%    try
+%      temp = figure('Visible', 'off');
+%      imagesc(cell2mat(ROI.RedPixelMap(1,i)));
+%      title(strcat('Red/mCherry Fluorescence ROI', num2str(i)));
+%      print('-dpng', fullfile(savepath, strcat('red_fl_',num2str(i),'.png')));
+%      print('-dtif', fullfile(savepath, strcat('red_fl_',num2str(i),'.tif')));
+%      close(temp);
+%    catch exception
+%    end
+%    try
+%      temp = figure('Visible', 'off');
+%      imagesc(cell2mat(ROI.YFPDICMap(1,i)));
+%      title(strcat('YFP/GFP DIC ROI', num2str(i)));
+%      print('-dpng', fullfile(savepath, strcat('yfp_dic_',num2str(i),'.png')));
+%      print('-dtif', fullfile(savepath, strcat('yfp_dic_',num2str(i),'.tif')));
+%    catch exception
+%    end
+%    try
+%      temp = figure('Visible', 'off');
+%      imagesc(cell2mat(ROI.RedDICMap(1,i)));
+%      title(strcat('Red/mCherry DIC ROI', num2str(i)));
+%      print('-dpng', fullfile(savepath, strcat('red_dic_',num2str(i),'.png')));
+%      print('-dtif', fullfile(savepath, strcat('red_dic_',num2str(i),'.tif')));
+%    catch exception
+%    end
   end
   this_image = overview_image; % getimage(GUI.OutputGraph);
   this_image = uint8(255*this_image/max(this_image(:)));
