@@ -1042,7 +1042,6 @@ function DICPixelMapButton_Callback(hObject, eventdata, handles)
     imagesc(pixel_map); %(max_head_t:min_tail_t,:)
     title(strcat('Red/mCherry DIC ROI', num2str(i)));
     saveas(temp, fullfile(Metadata.Directory, strcat('red_dic_', num2str(i), '.png')), 'png');
-    saveas(temp, fullfile(Metadata.Directory, strcat('yfp_fl_', num2str(i), '.png')), 'png');
     
     ROI.RedDICMap = [ROI.RedDICMap pixel_map];
     ROI.RedDICEnds = [ROI.RedDICEnds [heads; tails]];
