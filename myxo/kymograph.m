@@ -29,10 +29,8 @@ function varargout = kymograph(varargin)
 %  Initialization tasks
 
 Parameters.MinConnectedComponents = 100;
-Parameters.SgolayHalfWindow = 10; % TODO deprecated
-Parameters.NormalHalfWindow = 8; % = 15
-Parameters.Dilations = 4; % TODO deprecated
-Parameters.ExtensionLength = 15;
+Parameters.Normals1 = 15;
+Parameters.Normals2 = 25;
 
 Metadata.Directory = 0;
 Metadata.YFPFiles = 0;
@@ -761,14 +759,14 @@ function ThresholdButton_Callback(hObject, eventdata, handles)
     Display.OutputImage = Display.OutputImage+double(imread(fullfile(Metadata.Directory, stack_files(i).name), 'TIFF'));
   end
   Display.Average = Display.OutputImage/num_files; %Display.Num;
-  mask = threshold(Display.Average, 100);
+  mask = threshold(Display.Average, Parameters.MinConnectedComponents);
   for i = 1:ROI.N
     this_rect = ROI.Rects(1,4*i-3:4*i);
     x = round(this_rect(1));
     y = round(this_rect(2));
     w = round(this_rect(3));
     h = round(this_rect(4));
-    this_mask = mask(y:y+h-1,x:x+w-1).*bwareaopen(mask(y:y+h-1,x:x+w-1), 400);
+    this_mask = mask(y:y+h-1,x:x+w-1).*bwareaopen(mask(y:y+h-1,x:x+w-1), 2*Parameters.MinConnectedComponents);
     this_image = Display.Average(y:y+h-1,x:x+w-1).*this_mask;
 %    this_image = threshold(Display.Average(y:y+h-1,x:x+w-1), 100);
 %    this_image = double(this_image.*Display.Average(y:y+h-1,x:x+w-1));
@@ -797,7 +795,7 @@ function PixelMapButton_Callback(hObject, eventdata, handles)
     ROI.Retracts = [ROI.Retracts retract];
     ROI.Ends = [ROI.Ends ends];
     
-    [normals extend poles] = KymoNormals(cell2mat(ROI.Retracts(1,i)), cell2mat(ROI.Ends(1,i)), cell2mat(ROI.Images(1,i)), 15, 0, 0);
+    [normals extend poles] = KymoNormals(cell2mat(ROI.Retracts(1,i)), cell2mat(ROI.Ends(1,i)), cell2mat(ROI.Images(1,i)), Parameters.Normals1, 0, 0);
     ROI.Poles = [ROI.Poles poles];
     ROI.Extends = [ROI.Extends extend];
     
@@ -892,8 +890,8 @@ function DICPixelMapButton_Callback(hObject, eventdata, handles)
     fprintf(1, 'Runtime estimate: %f s\n', round(sqrt(w^2+h^2)/225*Metadata.NumYFPFiles));
     
     [contour retract ends] = KymoRetract(cell2mat(ROI.Images(1,i)));
-    [normals extend poles] = KymoNormals(retract, ends, cell2mat(ROI.Images(1,i)), 15, 25, 0);
-    [normals_ext extra1 extra2] = KymoNormals(retract, ends, ones(h,w), 15, 25, 25);
+    [normals extend poles] = KymoNormals(retract, ends, cell2mat(ROI.Images(1,i)), Parameters.Normals1, Parameters.Normals2, 0);
+    [normals_ext extra1 extra2] = KymoNormals(retract, ends, ones(h,w), Parameters.Normals1, Parameters.Normals2, Parameters.Normals2);
     
     [v u] = find(extend > 0);
     all_pixels = length(u);
@@ -1185,18 +1183,57 @@ function SaveButton_Callback(hObject, eventdata, handles)
   savefile, savepath
   save(fullfile(savepath, savefile), 'Parameters', 'Metadata', 'ROI');
   % TODO output readme file with .mat
-  readmefile = strcat(savefile, '_readme');
+  readmefile = strcat(savefile, '_readme.txt');
+%  summaryfile = strcat(savefile, '_summary.html');
   readme = fopen(fullfile(savepath, readmefile), 'w+');
+%  summary = fopen(fullfile(savepath, summaryfile), 'w+');
   fprintf(readme, 'Date: %s\n', datestr(clock()));
   fprintf(readme, 'Output: %s\n', fullfile(savepath, savefile));
   fprintf(readme, 'Directory: %s\n', Metadata.Directory);
+  fprintf(readme, 'User Parameters: (none)\n');
+%  fprintf(summary, '<!DOCTYPE html>\n<html>\n<head>\n<title>Results: %s', datestr(clock()));
+%  fprintf(summary, '</title>\n</head>\n<body>\n');
+  overview_image = Display.Average;
   for i = 1:ROI.N
     x = round(ROI.Rects(4*i-3));
     y = round(ROI.Rects(4*i-2));
     w = round(ROI.Rects(4*i-1));
     h = round(ROI.Rects(4*i));
     fprintf(readme, 'ROI %d: [%d %d %d %d]\n', i, x, y, w, h);
+    overview_image(y,x:x+w-1) = 0;
+    overview_image(y+h-1,x:x+w-1) = 0;
+    overview_image(y:y+h-1,x) = 0;
+    overview_image(y:y+h-1,x+w-1) = 0;
+    try
+      this_image = cell2mat(ROI.YFPPixelMap(1,i));
+      this_image = uint8(255*this_image/max(this_image(:)));
+      imwrite(this_image, fullfile(savepath, strcat('yfp_fl_',num2str(i),'.tif')), 'tif');
+      imwrite(this_image, fullfile(savepath, strcat('yfp_fl_',num2str(i),'.png')), 'png');
+      this_image = cell2mat(ROI.RedPixelMap(1,i));
+      this_image = uint8(255*this_image/max(this_image(:)));
+      imwrite(this_image, fullfile(savepath, strcat('red_fl_',num2str(i),'.tif')), 'tif');
+      imwrite(this_image, fullfile(savepath, strcat('red_fl_',num2str(i),'.png')), 'png');
+    catch exception
+      % nothing
+    end
+    try
+      this_image = cell2mat(ROI.YFPDICMap(1,i));
+      this_image = uint8(255*this_image/max(this_image(:)));
+      imwrite(this_image, fullfile(savepath, strcat('yfp_dic_',num2str(i),'.tif')), 'tif');
+      imwrite(this_image, fullfile(savepath, strcat('yfp_dic_',num2str(i),'.png')), 'png');
+      this_image = cell2mat(ROI.RedDICMap(1,i));
+      this_image = uint8(255*this_image/max(this_image(:)));
+      imwrite(this_image, fullfile(savepath, strcat('red_dic_',num2str(i),'.tif')), 'tif');
+      imwrite(this_image, fullfile(savepath, strcat('red_dic_',num2str(i),'.png')), 'png');
+    catch exception
+      % nothing
+    end
   end
+  this_image = overview_image; % getimage(GUI.OutputGraph);
+  this_image = uint8(255*this_image/max(this_image(:)));
+  imwrite(this_image, fullfile(savepath, 'overview.png'), 'png');
+%  fprintf(summary, '</body>\n</html>\n');
+%  fclose(summary);
   fclose(readme);
 end
 
