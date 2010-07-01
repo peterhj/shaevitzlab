@@ -594,30 +594,39 @@ function [new_pixel_map heads tails] = MapAlign(pixel_map, target_length, heads,
       last_col = new_pixel_map(:,j-1);
       last_col = (last_col-mean(last_col))/std(last_col);
       for k = 0:len_diff
-        this_col = pixel_map(heads(j)+k:heads(j)+target_length+k-1,j);
+        this_col = pixel_map(heads(j)+k:heads(j)+k+target_length-1,j);
         this_col = (this_col-mean(this_col))/std(this_col);
         ldiff = (this_col.*last_col);
         ldiffs = [ldiffs sum(ldiff)];
       end
 %      for k = 0:len_diff
-%        this_col = pixel_map(heads(j)+target_length+k-1:-1:heads(j)+k,j);
+%        this_col = pixel_map(tails(j)-k:-1:tails(j)-k-target_length+1,j);
 %        this_col = (this_col-mean(this_col))/std(this_col);
 %        rdiff = (this_col.*last_col);
-%        rdiffs = [ldiffs sum(ldiff)];
+%        rdiffs = [rdiffs sum(rdiff)];
 %      end
       ltop = find(ldiffs == max(ldiffs));
 %      rtop = find(rdiffs == max(rdiffs));
-%      if max(ldiffs) > max(rdiffs)
-        heads(j) = heads(j)+round(mean(ltop))-1;
-        tails(j) = heads(j)+target_length-1;
-%        interval = 1;
+%      if max(ldiffs) >= max(rdiffs) || rtop == NaN
+        l_head = heads(j)+round(mean(ltop))-1;
+        l_tail = l_head+target_length-1;
 %      else
-%        heads(j) = tails(j)-round(mean(rtop))-1;
-%        tails(j) = heads(j)-target_length-1;
-%        interval = -1;
+%        r_tail = tails(j)-rtop+1;
+%        r_head = r_tail-target_length+1;
 %      end
     end
-    new_pixel_map = [new_pixel_map pixel_map(heads(j):tails(j),j)];
+%    if max(ldiffs) >= max(rdiffs)
+%      [j l_head l_tail]
+      new_pixel_map = [new_pixel_map pixel_map(l_head:l_tail,j)];
+      heads(j) = l_head;
+      tails(j) = l_tail;
+%    else
+%      [j r_head r_tail]
+%      this_col = pixel_map(r_head:r_tail,j);
+%      new_pixel_map = [new_pixel_map this_col(end:-1:1)];
+%      heads(j) = r_head;
+%      tails(j) = r_tail;
+%    end
   end
 end
 
@@ -1048,6 +1057,7 @@ function DICFrameMap_Callback(hObject, eventdata, handles)
     tails = [];
     
     fprintf(1, 'Starting DIC framewise map...\n');
+    tic;
     
     for j = 1:Metadata.NumYFPFiles
       
@@ -1057,14 +1067,30 @@ function DICFrameMap_Callback(hObject, eventdata, handles)
       scaled_image = abs(filter2(circle10, scaled_image));
       scaled_image = scaled_image.^2;
       
-      mask = edge(scaled_image, 'sobel')+edge(scaled_image, 'prewitt')+edge(scaled_image, 'log');
-      mask = bwareaopen(mask > 0, 10);
+      mask = edge(scaled_image, 'sobel')+edge(scaled_image, 'log');
+      mask = bwareaopen(mask > 0, 20);
       
-      ends = bwmorph(mask, 'endpoints');
-      [v u] = find(ends > 0);
-      for k = 1:length(u)
-        mask = localclose(mask, [u(k) v(k)], 7);
+      % If it doesn't work the first time, throw more convex hulls at it.
+%      contour = edge(mask, 'canny');
+      [v u] = find(mask > 0);
+      t = convhull(u, v);
+      for k = 1:length(t)-1
+        [x1 x2 x3 vv uu] = bresenham(mask, [u(t(k)) v(t(k)); u(t(k+1)) v(t(k+1))], 0);
+        for l = 1:length(uu)
+          mask(vv(l),uu(l)) = 1;
+        end
       end
+      [x1 x2 x3 vv uu] = bresenham(mask, [u(t(1)) v(t(1)); u(t(end)) v(t(end))], 0);
+      for l = 1:length(uu)
+        mask(vv(l),uu(l)) = 1;
+      end
+%      mask = imfill(mask, 'holes');
+      
+%      ends = bwmorph(mask, 'endpoints');
+%      [v u] = find(ends > 0);
+%      for k = 1:length(u)
+%        mask = localclose(mask, [u(k) v(k)], 7);
+%      end
       mask = imfill(mask, 'holes');
       mask = bwareaopen(mask, 100);
       
@@ -1075,90 +1101,33 @@ function DICFrameMap_Callback(hObject, eventdata, handles)
 %      end
 %      mask = bwmorph(mask, 'close');
       
-      % If it doesn't work the first time, throw more convex hulls at it.
-      contour = edge(mask, 'canny');
-      [v u] = find(contour > 0);
-      t = convhull(u, v);
-      for k = 1:length(t)-1
-        [x1 x2 x3 vv uu] = bresenham(contour, [u(k) v(k); u(k+1) v(k+1)], 0);
-        for l = 1:length(uu)
-          contour(vv(l),uu(l)) = 1;
-        end
-      end
-      [x1 x2 x3 vv uu] = bresenham(contour, [u(1) v(1); u(length(t)) v(length(t))], 0);
-      for l = 1:length(uu)
-        contour(vv(l),uu(l)) = 1;
-      end
-      mask = imfill(contour, 'holes');
-      
-%      contour = edge(mask, 'canny');
-%      [v u] = find(contour > 0);
-%      t = convhull(u, v);
-%      for k = 1:length(t)-1
-%        [x1 x2 x3 vv uu] = bresenham(contour, [u(k) v(k); u(k+1) v(k+1)], 0);
-%        for l = 1:length(uu)
-%          contour(vv(l),uu(l)) = 1;
-%        end
-%      end
-%      [x1 x2 x3 vv uu] = bresenham(contour, [u(1) v(1); u(length(t)) v(length(t))], 0);
-%      for l = 1:length(uu)
-%        contour(vv(l),uu(l)) = 1;
-%      end
-%      mask = imfill(contour, 'holes');
-%      
-%      contour = edge(mask, 'canny');
-%      [v u] = find(contour > 0);
-%      t = convhull(u, v);
-%      for k = 1:length(t)-1
-%        [x1 x2 x3 vv uu] = bresenham(contour, [u(k) v(k); u(k+1) v(k+1)], 0);
-%        for l = 1:length(uu)
-%          contour(vv(l),uu(l)) = 1;
-%        end
-%      end
-%      [x1 x2 x3 vv uu] = bresenham(contour, [u(1) v(1); u(length(t)) v(length(t))], 0);
-%      for l = 1:length(uu)
-%        contour(vv(l),uu(l)) = 1;
-%      end
-%      mask = imfill(contour, 'holes');
-%      
-%      contour = edge(mask, 'canny');
-%      [v u] = find(contour > 0);
-%      t = convhull(u, v);
-%      for k = 1:length(t)-1
-%        [x1 x2 x3 vv uu] = bresenham(contour, [u(k) v(k); u(k+1) v(k+1)], 0);
-%        for l = 1:length(uu)
-%          contour(vv(l),uu(l)) = 1;
-%        end
-%      end
-%      [x1 x2 x3 vv uu] = bresenham(contour, [u(1) v(1); u(length(t)) v(length(t))], 0);
-%      for l = 1:length(uu)
-%        contour(vv(l),uu(l)) = 1;
-%      end
-%      mask = imfill(contour, 'holes');
-      
       mask = bwareaopen(mask, 10);
 %      mask = bwmorph(mask, 'majority');
       pad = 10;
       mask = padarray(mask, [pad pad]);
-      se = strel('disk', 4);
+      se = strel('disk', 3);
       mask = imclose(mask, se);
-      mask = mask(1+pad:end-pad,1+pad:end-pad);
+%      se = strel('disk', 2);
+%      mask = imclose(mask, se);
+%      mask = mask(1+pad:end-pad,1+pad:end-pad);
+      mask = imfill(mask, 'holes');
+%      mask = bwmorph(mask, 'erode', 2);
       
 %      figure;
 %      imagesc(mask);
       
       retract = bwmorph(mask, 'thin', Inf);
-      retract = bwmorph(retract, 'spur');
-      ends = bwmorph(retract, 'branchpoints');
+      ends = bwmorph(retract, 'endpoints');
       [v u] = find(ends > 0);
       for k = 1:length(u)
-        retract = localclose(retract, [u(k) v(k)], 10);
+        retract = localclose(retract, [u(k) v(k)], 15);
       end
-      retract = bwmorph(retract, 'thicken', 1);
-      retract = bwmorph(retract, 'thin', 1);
-      retract = bwmorph(retract, 'spur');
+%      retract = bwmorph(retract, 'thin', Inf);
+%      retract = bwmorph(retract, 'spur');
+      se = strel('disk', 5);
+      retract = imclose(retract, se);
       retract = bwmorph(retract, 'thin', Inf);
-      retract = bwmorph(retract, 'spur');
+      retract = retract(1+pad:end-pad,1+pad:end-pad);
       ends = bwmorph(retract, 'endpoints');
       [v u] = find(ends > 0);
       
@@ -1171,7 +1140,7 @@ function DICFrameMap_Callback(hObject, eventdata, handles)
       end
       assert(2 <= length(u));
       
-      [normals extend poles] = KymoNormals(retract, [u v], mask, 15, 18, 0);
+      [normals extend poles] = KymoNormals(retract, [u v], mask, 15, 25, 0);
       
       full_image = double(imread(fullfile(Metadata.Directory, Metadata.YFPFiles(j).name), 'TIFF'));
       scaled_image = full_image(y:y+h-1,x:x+w-1);
@@ -1202,6 +1171,8 @@ function DICFrameMap_Callback(hObject, eventdata, handles)
     [pixel_map heads tails] = MapAlign(pixel_map, min_length, heads, tails, Metadata.NumYFPFiles);
     
     fprintf(1, 'Done.\n');
+    toc;
+    
     figure;
     imagesc(pixel_map);
     
