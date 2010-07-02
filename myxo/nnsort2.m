@@ -15,8 +15,9 @@
 % Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307,
 % USA.
 
+% --- 
+% Performs a 2D nearest-neighbor sort on [u v], starting at p = [u0 v0].
 function [U V] = nnsort2(u, v, p)
-% nnsort2  Nearest-neighbor sort on a 2D binary path.
   
   num_pixels = length(u);
   assert(num_pixels == length(v));

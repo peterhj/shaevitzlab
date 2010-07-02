@@ -759,6 +759,8 @@ function ThresholdButton_Callback(hObject, eventdata, handles)
 end
 
 % --- 
+% Construct a kymograph only using the fluorescence images. Useful only for 
+% stationary cells, for which this is very stable.
 function PixelMapButton_Callback(hObject, eventdata, handles)
   ROI.Contours = {};
   ROI.Retracts = {};
@@ -856,6 +858,8 @@ function PixelMapButton_Callback(hObject, eventdata, handles)
 end
 
 % --- 
+% Construct a kymograph using the fluorescence retract and the DIC as a 
+% cell position reference.
 function DICPixelMapButton_Callback(hObject, eventdata, handles)
 %  ROI.Contours = {};
 %  ROI.Retracts = {};
@@ -1030,6 +1034,8 @@ function DICPixelMapButton_Callback(hObject, eventdata, handles)
 end
 
 % --- 
+% Constructs a kymograph solely using DIC images to reference cell position and 
+% the shape of the retract.
 function DICFrameMap_Callback(hObject, eventdata, handles)
   % Find framewise retracts of a cell using correlation and edge detection
   for i = 1:ROI.N

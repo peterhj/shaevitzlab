@@ -15,6 +15,10 @@
 % Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307,
 % USA.
 
+% --- 
+% Takes a binary mask and point on the mask and closes a square region of 
+% half-length b around the point; i.e. all points on the mask within the square 
+% of length 2b+1 around the point p are linearly connected to p.
 function [closed] = localclose(mask, pt, b)
   closed = mask;
   [v u] = find(closed > 0);
