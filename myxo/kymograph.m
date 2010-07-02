@@ -601,34 +601,11 @@ function [new_pixel_map heads tails] = MapAlign(pixel_map, target_length, heads,
         ldiff = (this_col.*last_col);
         ldiffs = [ldiffs sum(ldiff)];
       end
-%      for k = 0:len_diff
-%        this_col = pixel_map(tails(j)-k:-1:tails(j)-k-target_length+1,j);
-%        this_col = (this_col-mean(this_col))/std(this_col);
-%        rdiff = (this_col.*last_col);
-%        rdiffs = [rdiffs sum(rdiff)];
-%      end
       ltop = find(ldiffs == max(ldiffs));
-%      rtop = find(rdiffs == max(rdiffs));
-%      if max(ldiffs) >= max(rdiffs) || rtop == NaN
-        l_head = heads(j)+round(mean(ltop))-1;
-        l_tail = l_head+target_length-1;
-%      else
-%        r_tail = tails(j)-rtop+1;
-%        r_head = r_tail-target_length+1;
-%      end
+        heads(j) = heads(j)+round(mean(ltop))-1;
+        tails(j) = heads(j)+target_length-1;
     end
-%    if max(ldiffs) >= max(rdiffs)
-%      [j l_head l_tail]
-      new_pixel_map = [new_pixel_map pixel_map(l_head:l_tail,j)];
-      heads(j) = l_head;
-      tails(j) = l_tail;
-%    else
-%      [j r_head r_tail]
-%      this_col = pixel_map(r_head:r_tail,j);
-%      new_pixel_map = [new_pixel_map this_col(end:-1:1)];
-%      heads(j) = r_head;
-%      tails(j) = r_tail;
-%    end
+    new_pixel_map = [new_pixel_map pixel_map(heads(j):tails(j),j)];
   end
 end
 
@@ -1098,6 +1075,10 @@ function DICFrameMap_Callback(hObject, eventdata, handles)
       for l = 1:length(uu)
         mask(vv(l),uu(l)) = 1;
       end
+      
+%      figure;
+%      imagesc(mask);
+      
 %      mask = imfill(mask, 'holes');
       
 %      ends = bwmorph(mask, 'endpoints');
@@ -1115,46 +1096,48 @@ function DICFrameMap_Callback(hObject, eventdata, handles)
 %      end
 %      mask = bwmorph(mask, 'close');
       
-      mask = bwareaopen(mask, 10);
-%      mask = bwmorph(mask, 'majority');
       pad = 10;
+      
+%      mask = bwareaopen(mask, 10);
+%      mask = bwmorph(mask, 'majority');
       mask = padarray(mask, [pad pad]);
       se = strel('disk', 3);
       mask = imclose(mask, se);
 %      se = strel('disk', 2);
 %      mask = imclose(mask, se);
 %      mask = mask(1+pad:end-pad,1+pad:end-pad);
-      mask = imfill(mask, 'holes');
+%      mask = imfill(mask, 'holes');
 %      mask = bwmorph(mask, 'erode', 2);
       
 %      figure;
 %      imagesc(mask);
       
       retract = bwmorph(mask, 'thin', Inf);
-      ends = bwmorph(retract, 'endpoints');
-      [v u] = find(ends > 0);
-      for k = 1:length(u)
-        retract = localclose(retract, [u(k) v(k)], 15);
-      end
+%      ends = bwmorph(retract, 'endpoints');
+%      [v u] = find(ends > 0);
+%      for k = 1:length(u)
+%        retract = localclose(retract, [u(k) v(k)], 15);
+%      end
+%      se = strel('disk', 5);
+%      retract = imclose(retract, se);
 %      retract = bwmorph(retract, 'thin', Inf);
-%      retract = bwmorph(retract, 'spur');
-      se = strel('disk', 5);
-      retract = imclose(retract, se);
-      retract = bwmorph(retract, 'thin', Inf);
       retract = retract(1+pad:end-pad,1+pad:end-pad);
       ends = bwmorph(retract, 'endpoints');
       [v u] = find(ends > 0);
       
-      if length(u) ~= 2
-        [u v]
-        figure;
-        imagesc(mask);
-        figure;
-        imagesc(retract);
-      end
+%      if length(u) ~= 2
+%        [u v]
+%        figure;
+%        imagesc(mask);
+%        figure;
+%        imagesc(retract);
+%      end
       assert(2 <= length(u));
       
       [normals extend poles] = KymoNormals(retract, [u v], mask, 15, 25, 0);
+      
+%      figure;
+%      imagesc(mask(1+pad:end-pad,1+pad:end-pad)+retract);
       
       full_image = double(imread(fullfile(Metadata.Directory, Metadata.YFPFiles(j).name), 'TIFF'));
       scaled_image = full_image(y:y+h-1,x:x+w-1);
@@ -1182,7 +1165,7 @@ function DICFrameMap_Callback(hObject, eventdata, handles)
       
     end
     
-    [pixel_map heads tails] = MapAlign(pixel_map, min_length, heads, tails, Metadata.NumYFPFiles);
+%    [pixel_map heads tails] = MapAlign(pixel_map, min_length, heads, tails, Metadata.NumYFPFiles);
     
     fprintf(1, 'Done.\n');
     toc;
