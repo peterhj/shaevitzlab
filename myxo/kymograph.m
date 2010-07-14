@@ -518,7 +518,7 @@ function [pixel_map heads tails] = DICCCNormals(extend, normals, normals_ext, x,
 %    end
     
     % A different second approximation: template matching.
-    template = double(imread('data/circle10.png', 'PNG'));
+    template = double(imread('circle10.png', 'PNG'));
     template = template/max(template(:));
     intersection = extend.*edge(filter2(template, scaled_image), 'canny');
     [corr_v corr_u] = find(intersection > 0);
