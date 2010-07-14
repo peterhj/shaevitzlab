@@ -579,7 +579,7 @@ end
 % --- 
 function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap(x, y, w, h)
   
-  circle10 = double(imread('data/circle10.png', 'PNG'));
+  circle10 = double(imread('circle10.png', 'PNG'));
   circle10 = circle10/max(circle10(:));
   
   yfp_map = [];
