@@ -24,6 +24,15 @@
 % 
 % v1.0 16-June-2010
 
+% Apart from some GUI callbacks and utility functions, the following functions 
+% are the workhorses of this program.
+%
+% KymoNormals                 % in KymoNormals.m
+% DICCCNormals                % the Old DIC Map (1) main logic
+% DICFrameMap                 % the New DIC Map (2) main logic
+% PixelMapButton_Callback     % some fluorescence map setup
+% DICPixelMapButton_Callback  % some Old DIC Map (1) setup
+
 function varargout = kymograph(varargin)
 
 %  Initialization tasks
@@ -344,94 +353,7 @@ function ResetROI()
 end
 
 % --- 
-function FluorescenceNormals()
-  
-end
-
-% --- 
-function [head_t tail_t] = DICNormals(j, filter, col_pixels, extend, normals, normals_ext, x, y, w, h)
-  scaled_image = double(imread(fullfile(Metadata.Directory, Metadata.DICFiles(Metadata.DICStep*(j-1)+1+Metadata.DICOffset).name), 'TIFF'));
-  scaled_image = scaled_image(y:y+h-1,x:x+w-1);
-  
-  % Adjust the DIC contrast for a uniform threshold
-%  blur = imfilter(scaled_image, filter);
-%  scaled_image = scaled_image-blur;
-  scaled_image = scaled_image-mean2(scaled_image);
-%  scaled_image = 1000*scaled_image;
-  scaled_image = 1000*mean(std(scaled_image))*scaled_image./max(max(scaled_image));
-  
-  % Locally close mask from DIC, then find points near poles
-  scaled_image = abs(scaled_image);
-  mask = threshold(scaled_image, 50);
-  mask = bwmorph(mask, 'dilate', 5);
-  ends = bwmorph(mask, 'thin', Inf);
-  ends = bwmorph(ends, 'endpoints');
-  [end_v end_u] = find(ends > 0);
-  for k = 1:length(end_u)
-    mask = localclose(mask, [end_u(k) end_v(k)], 15);
-  end
-  scaled_image = mask.*abs(scaled_image);
-  
-  % First approximation of the DIC poles
-  [v u] = find(extend > 0);
-  ends = bwmorph(extend, 'endpoints');
-  [end_r end_c] = find(ends > 0);
-  [u v] = eusort2(u, v, [end_c(1) end_r(1)]); % nnsort2
-  [int_v int_u] = find(extend.*mask > 0);
-  num_intersect = length(int_u);
-  assert(num_intersect >= 2);
-  t = [];
-  for k = 1:num_intersect
-    t = [t intersect(find(v == int_v(k)), find(u == int_u(k)))];
-  end
-  % these are the indices of the raw intersections with the mask
-  head_t = min(t);
-  tail_t = max(t);
-  
-  % Second approximation of the DIC poles
-  if head_t > 1
-    for k = head_t-1:-1:1
-      line = cell2mat(normals_ext(1,k));
-      this_len = 0;
-      for l = 1:length(line(:,1))
-        if mask(line(l,2),line(l,1)) > 0
-          this_len = this_len+1;
-        end
-      end
-      if this_len == 0
-        head_t = k+1;
-        break
-      end
-    end
-  end
-  if tail_t < length(u)
-    for k = tail_t+1:length(u)
-      line = cell2mat(normals_ext(1,k));
-      this_len = 0;
-      for l = 1:length(line(:,1))
-        if mask(line(l,2),line(l,1)) > 0
-          this_len = this_len+1;
-        end
-      end
-      if this_len == 0
-        tail_t = k-1;
-        break
-      end
-    end
-  end
-  
-%  figure;
-%  imagesc(scaled_image);
-  
-%  if tail_t-head_t < 0.9*mean(col_pixels)
-%    figure; plot(u,v);
-%    figure;
-%    imagesc(scaled_image+10*mean(std(scaled_image))*extend);
-%    title(strcat(num2str(j), ' length ', num2str(tail_t-head_t+1)));
-%  end
-end
-
-% --- 
+% Use the fluorescence retract with DIC images.
 function [pixel_map heads tails] = DICCCNormals(extend, normals, normals_ext, x, y, w, h, n, files)
 
   [v u] = find(extend > 0);
@@ -577,6 +499,9 @@ function [pixel_map heads tails] = DICCCNormals(extend, normals, normals_ext, x,
 end
 
 % --- 
+% Framewise map with the DIC and fluorescence images. Does not use the global 
+% threshold average, unlike "Fluo. Map" and "DIC Map".
+% Also, this is the one labeled "DIC Map 2".
 function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap(x, y, w, h)
   
   circle10 = double(imread('circle10.png', 'PNG'));
@@ -595,7 +520,7 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
   
   endpts = [];
   
-  % User input to select a point in the first frame
+  % TODO User input to select a point in the first frame
   
   
   for j = 1:Metadata.NumYFPFiles
@@ -761,8 +686,9 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
     
     [normals extend poles] = KymoNormals(retract, endpts(j,:), mask, 15, 25, 5);
     
+    % DEBUG
 %    figure;
-%    imagesc(mask(1+pad:end-pad,1+pad:end-pad)+retract);
+%    imagesc(mask(1+pad:end-pad,1+pad:end-pad)+extend);
     
 %    padding = 15;
     
@@ -778,6 +704,7 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
     end
     head = 1;
     tail = num_pixels;
+    % zero-crossing correction (unused)
 %    norm_col = pixel_col(1:num_pixels);
 %    norm_col = norm_col-mean(norm_col);
 %    for k = 1:num_pixels
@@ -809,6 +736,7 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
     end
     head = 1;
     tail = num_pixels;
+    % zero-crossing correction (unused)
 %    norm_col = pixel_col(1:num_pixels);
 %    norm_col = norm_col-mean(norm_col);
 %    for k = 1:num_pixels
@@ -840,10 +768,12 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
   red_length = min(red_lengths);
   target_length = min(yfp_length, red_length);
   
-  for depress = 8:2:24
-    [new_yfp_map yfp_heads yfp_tails] = MapAlign(yfp_map, target_length-depress, yfp_heads, yfp_tails, Metadata.NumYFPFiles);
-    [new_red_map red_heads red_tails] = MapAlign(red_map, target_length-depress, red_heads, red_tails, Metadata.NumRedFiles);
-  end
+%  for depress = 8:2:24
+%    [new_yfp_map yfp_heads yfp_tails] = MapAlign(yfp_map, target_length-depress, yfp_heads, yfp_tails, Metadata.NumYFPFiles);
+%    [new_red_map red_heads red_tails] = MapAlign(red_map, target_length-depress, red_heads, red_tails, Metadata.NumRedFiles);
+%  end
+  
+%  [new_yfp_map yfp_heads yfp_tails] = MapAlign(yfp_map, target_length, yfp_heads, yfp_tails, Metadata.NumYFPFiles);
   
 %  full_image = double(imread(fullfile(Metadata.Directory, Metadata.YFPFiles(j).name), 'TIFF'));
 %  pixel_col = zeros(w+h, 1);
@@ -860,6 +790,9 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
 end
 
 % --- 
+% Performs post-correction on the unaligned kymograph columns. This is after 
+% the "raw" columns have been obtained, and we need to correct for the jitter 
+% inherent in using individual frames to produce the retract.
 function [new_pixel_map heads tails] = MapAlign(pixel_map, target_length, heads, tails, n)
   % jitter correction by cross correlation
   if tails(1)-heads(1)+1 > target_length
@@ -913,6 +846,7 @@ function [new_pixel_map heads tails] = MapAlign(pixel_map, target_length, heads,
 end
 
 % --- 
+% Not currently used. A non-loop version of MapAlign for use within other loops.
 function [offset] = LinearAlign(old, new)
   if length(new) > length(old)
     static = old;
@@ -1246,53 +1180,55 @@ function DICFrameMap_Callback(hObject, eventdata, handles)
     heads = round((yfp_heads+red_heads)/2);
     tails = round((yfp_tails+red_tails)/2);
     
-    pixel_map = [];
-    for j = 1:length(yfp_tails)
-      pixel_map = [pixel_map yfp_map(yfp_heads(j):yfp_tails(j),j)];
-    end
+    pixel_map = yfp_map;
+%    pixel_map = [];
+%    for j = 1:length(yfp_tails)
+%      pixel_map = [pixel_map yfp_map(yfp_heads(j):yfp_tails(j),j)];
+%    end
     figure;
     imagesc(pixel_map);
     title(strcat('YFP/GFP DIC/YFP ROI', num2str(i)));
     
-    pixel_map = [];
-    for j = 1:length(yfp_tails)
-      pixel_map = [pixel_map red_map(yfp_heads(j):yfp_tails(j),j)];
-    end
-    figure;
-    imagesc(pixel_map);
-    title(strcat('Red/mCherry DIC/YFP ROI', num2str(i)));
+%    pixel_map = [];
+%    for j = 1:length(yfp_tails)
+%      pixel_map = [pixel_map red_map(yfp_heads(j):yfp_tails(j),j)];
+%    end
+%    figure;
+%    imagesc(pixel_map);
+%    title(strcat('Red/mCherry DIC/YFP ROI', num2str(i)));
+%    
+%    pixel_map = [];
+%    for j = 1:length(red_tails)
+%      pixel_map = [pixel_map yfp_map(red_heads(j):red_tails(j),j)];
+%    end
+%    figure;
+%    imagesc(pixel_map);
+%    title(strcat('YFP/GFP DIC/Red ROI', num2str(i)));
     
-    pixel_map = [];
-    for j = 1:length(red_tails)
-      pixel_map = [pixel_map yfp_map(red_heads(j):red_tails(j),j)];
-    end
-    figure;
-    imagesc(pixel_map);
-    title(strcat('YFP/GFP DIC/Red ROI', num2str(i)));
-    
-    pixel_map = [];
-    for j = 1:length(red_tails)
-      pixel_map = [pixel_map red_map(red_heads(j):red_tails(j),j)];
-    end
+    pixel_map = red_map;
+%    pixel_map = [];
+%    for j = 1:length(red_tails)
+%      pixel_map = [pixel_map red_map(red_heads(j):red_tails(j),j)];
+%    end
     figure;
     imagesc(pixel_map);
     title(strcat('Red/mCherry DIC/Red ROI', num2str(i)));
     
-    pixel_map = [];
-    for j = 1:length(heads)
-      pixel_map = [pixel_map yfp_map(heads(j):tails(j),j)];
-    end
-    figure;
-    imagesc(pixel_map);
-    title(strcat('YFP/GFP DIC/mean ROI', num2str(i)));
-    
-    pixel_map = [];
-    for j = 1:length(heads)
-      pixel_map = [pixel_map red_map(heads(j):tails(j),j)];
-    end
-    figure;
-    imagesc(pixel_map);
-    title(strcat('Red/mCherry DIC/mean ROI', num2str(i)));
+%    pixel_map = [];
+%    for j = 1:length(heads)
+%      pixel_map = [pixel_map yfp_map(heads(j):tails(j),j)];
+%    end
+%    figure;
+%    imagesc(pixel_map);
+%    title(strcat('YFP/GFP DIC/mean ROI', num2str(i)));
+%    
+%    pixel_map = [];
+%    for j = 1:length(heads)
+%      pixel_map = [pixel_map red_map(heads(j):tails(j),j)];
+%    end
+%    figure;
+%    imagesc(pixel_map);
+%    title(strcat('Red/mCherry DIC/mean ROI', num2str(i)));
     
     fprintf(1, 'Done.\n');
     toc;
