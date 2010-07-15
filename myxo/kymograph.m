@@ -354,6 +354,9 @@ end
 
 % --- 
 % Use the fluorescence retract with DIC images.
+% From the fluorescence threshold, we can find a retract; then thresholding the 
+% individual DIC frames, we can find the cell poles from the intersection of 
+% the DIC threshold with the fluorescence retract.
 function [pixel_map heads tails] = DICCCNormals(extend, normals, normals_ext, x, y, w, h, n, files)
 
   [v u] = find(extend > 0);
@@ -500,8 +503,9 @@ end
 
 % --- 
 % Framewise map with the DIC and fluorescence images. Does not use the global 
-% threshold average, unlike "Fluo. Map" and "DIC Map".
-% Also, this is the one labeled "DIC Map 2".
+% threshold average, unlike "Fluo. Map" and "DIC Map". Instead, we generate 
+% retracts from each frame, using DIC and fluorescence combined.
+% This is the one labeled "DIC Map 2".
 function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap(x, y, w, h)
   
   circle10 = double(imread('circle10.png', 'PNG'));
@@ -773,7 +777,8 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
 %    [new_red_map red_heads red_tails] = MapAlign(red_map, target_length-depress, red_heads, red_tails, Metadata.NumRedFiles);
 %  end
   
-%  [new_yfp_map yfp_heads yfp_tails] = MapAlign(yfp_map, target_length, yfp_heads, yfp_tails, Metadata.NumYFPFiles);
+  [new_yfp_map yfp_heads yfp_tails] = MapAlign(yfp_map, target_length, yfp_heads, yfp_tails, Metadata.NumYFPFiles);
+  [new_red_map red_heads red_tails] = MapAlign(red_map, target_length, red_heads, red_tails, Metadata.NumRedFiles);
   
 %  full_image = double(imread(fullfile(Metadata.Directory, Metadata.YFPFiles(j).name), 'TIFF'));
 %  pixel_col = zeros(w+h, 1);
@@ -1180,11 +1185,11 @@ function DICFrameMap_Callback(hObject, eventdata, handles)
     heads = round((yfp_heads+red_heads)/2);
     tails = round((yfp_tails+red_tails)/2);
     
-    pixel_map = yfp_map;
-%    pixel_map = [];
-%    for j = 1:length(yfp_tails)
-%      pixel_map = [pixel_map yfp_map(yfp_heads(j):yfp_tails(j),j)];
-%    end
+%    pixel_map = yfp_map;
+    pixel_map = [];
+    for j = 1:length(yfp_tails)
+      pixel_map = [pixel_map yfp_map(yfp_heads(j):yfp_tails(j),j)];
+    end
     figure;
     imagesc(pixel_map);
     title(strcat('YFP/GFP DIC/YFP ROI', num2str(i)));
@@ -1205,11 +1210,11 @@ function DICFrameMap_Callback(hObject, eventdata, handles)
 %    imagesc(pixel_map);
 %    title(strcat('YFP/GFP DIC/Red ROI', num2str(i)));
     
-    pixel_map = red_map;
-%    pixel_map = [];
-%    for j = 1:length(red_tails)
-%      pixel_map = [pixel_map red_map(red_heads(j):red_tails(j),j)];
-%    end
+%    pixel_map = red_map;
+    pixel_map = [];
+    for j = 1:length(red_tails)
+      pixel_map = [pixel_map red_map(red_heads(j):red_tails(j),j)];
+    end
     figure;
     imagesc(pixel_map);
     title(strcat('Red/mCherry DIC/Red ROI', num2str(i)));
