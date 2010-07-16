@@ -1,30 +1,30 @@
 % Copyright (C) 2010, Peter Jin and Mingzhai Sun
-% 
+%
 % This program is free software; you can redistribute it and/or
 % modify it under the terms of the GNU General Public License
 % as published by the Free Software Foundation; either version 2
 % of the License, or (at your option) any later version.
-% 
+%
 % This program is distributed in the hope that it will be useful,
 % but WITHOUT ANY WARRANTY; without even the implied warranty of
 % MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-% GNU General Public License for more details. 
-% 
+% GNU General Public License for more details.
+%
 % You should have received a copy of the GNU General Public License
 % along with this program; if not, write to the Free Software
 % Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307,
 % USA.
-% 
-% Authors: 
-% Peter Jin 
+%
+% Authors:
+% Peter Jin
 % peterhaijin@gmail.com
-% 
+%
 % Mingzhai Sun
 % mingzhai@gmail.com
-% 
+%
 % v1.0 16-June-2010
 
-% Apart from some GUI callbacks and utility functions, the following functions 
+% Apart from some GUI callbacks and utility functions, the following functions
 % are the workhorses of this program.
 %
 % KymoNormals                 % in KymoNormals.m
@@ -327,7 +327,7 @@ function DisplayROIBorder(i)
   end
 end
 
-% --- 
+% ---
 function DisplayAllROIBorders()
   if ROI.N ~= 0
     for i = 1:ROI.N
@@ -336,7 +336,7 @@ function DisplayAllROIBorders()
   end
 end
 
-% --- 
+% ---
 function ResetROI()
   ROI.N = 0;
   ROI.Rects = [];
@@ -352,28 +352,28 @@ function ResetROI()
   ROI.RedPixelMap = {};
 end
 
-% --- 
+% ---
 % Use the fluorescence retract with DIC images.
-% From the fluorescence threshold, we can find a retract; then thresholding the 
-% individual DIC frames, we can find the cell poles from the intersection of 
+% From the fluorescence threshold, we can find a retract; then thresholding the
+% individual DIC frames, we can find the cell poles from the intersection of
 % the DIC threshold with the fluorescence retract.
 function [pixel_map heads tails] = DICCCNormals(extend, normals, normals_ext, x, y, w, h, n, files)
 
   [v u] = find(extend > 0);
   all_pixels = length(u);
-  
+
   heads = [];
   tails = [];
   col_pixels = [];
-  
+
   for j = 1:n
     scaled_image = double(imread(fullfile(Metadata.Directory, Metadata.DICFiles(Metadata.DICStep*(j-1)+1+Metadata.DICOffset).name), 'TIFF'));
     scaled_image = scaled_image(y:y+h-1,x:x+w-1);
-    
+
     % Adjust the DIC contrast for a uniform threshold
     scaled_image = scaled_image-mean2(scaled_image);
     scaled_image = 10000*scaled_image/std(scaled_image(:));
-    
+
     % Locally close mask from DIC, then find points near poles
     scaled_image = abs(scaled_image);
     mask = threshold(scaled_image, 50);
@@ -385,7 +385,7 @@ function [pixel_map heads tails] = DICCCNormals(extend, normals, normals_ext, x,
       mask = localclose(mask, [end_u(k) end_v(k)], 15);
     end
     scaled_image = mask.*abs(scaled_image);
-    
+
     % First approximation of the DIC poles
     [v u] = find(extend > 0);
     ends = bwmorph(extend, 'endpoints');
@@ -409,7 +409,7 @@ function [pixel_map heads tails] = DICCCNormals(extend, normals, normals_ext, x,
     % these are the indices of the raw intersections with the mask
     head_t = min(t);
     tail_t = max(t);
-    
+
     % Second approximation of the DIC poles
 %    if head_t > 1
 %      for k = head_t-1:-1:1
@@ -441,7 +441,7 @@ function [pixel_map heads tails] = DICCCNormals(extend, normals, normals_ext, x,
 %        end
 %      end
 %    end
-    
+
     % A different second approximation: template matching.
     template = double(imread('circle10.png', 'PNG'));
     template = template/max(template(:));
@@ -466,12 +466,12 @@ function [pixel_map heads tails] = DICCCNormals(extend, normals, normals_ext, x,
         tail_t = min(all_pixels, max(t)+6);
       end
     end
-    
+
     num_pixels = tail_t-head_t+1;
     col_pixels = [col_pixels num_pixels];
     heads = [heads head_t];
     tails = [tails tail_t];
-    
+
     % Compute the pixel map
     scaled_image = double(imread(fullfile(Metadata.Directory, files(j).name), 'TIFF'));
     scaled_image = scaled_image(y:y+h-1,x:x+w-1);
@@ -501,34 +501,34 @@ function [pixel_map heads tails] = DICCCNormals(extend, normals, normals_ext, x,
 %  figure; imagesc(pm);
 end
 
-% --- 
-% Framewise map with the DIC and fluorescence images. Does not use the global 
-% threshold average, unlike "Fluo. Map" and "DIC Map". Instead, we generate 
+% ---
+% Framewise map with the DIC and fluorescence images. Does not use the global
+% threshold average, unlike "Fluo. Map" and "DIC Map". Instead, we generate
 % retracts from each frame, using DIC and fluorescence combined.
 % This is the one labeled "DIC Map 2".
 function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap(x, y, w, h)
-  
+
   circle10 = double(imread('circle10.png', 'PNG'));
   circle10 = circle10/max(circle10(:));
-  
+
   yfp_map = [];
   red_map = [];
-  
+
   yfp_lengths = [];
   yfp_heads = [];
   yfp_tails = [];
-  
+
   red_lengths = [];
   red_heads = [];
   red_tails = [];
-  
+
   endpts = [];
-  
+
   % TODO User input to select a point in the first frame
-  
-  
+
+
   for j = 1:Metadata.NumYFPFiles
-    
+
     full_image = double(imread(fullfile(Metadata.Directory, Metadata.DICFiles(Metadata.DICStep*(j-1)+1).name), 'TIFF'));
     scaled_image = full_image(y:y+h-1,x:x+w-1);
     scaled_image = scaled_image/max(scaled_image(:));
@@ -539,7 +539,7 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
 %    scaled_image = abs(filter2(circle10, scaled_image));
 %    scaled_image = stand(scaled_image);
     dic_image = abs(scaled_image-mean2(scaled_image));
-    
+
     full_image = double(imread(fullfile(Metadata.Directory, Metadata.YFPFiles(j).name), 'TIFF'));
     scaled_image = full_image(y:y+h-1,x:x+w-1);
     scaled_image = scaled_image/max(scaled_image(:));
@@ -547,7 +547,7 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
 %    scaled_image = abs(filter2(circle10, scaled_image));
 %    scaled_image = stand(scaled_image);
     yfp_image = scaled_image;
-    
+
     full_image = double(imread(fullfile(Metadata.Directory, Metadata.RedFiles(j).name), 'TIFF'));
     scaled_image = full_image(y:y+h-1,x:x+w-1);
     scaled_image = scaled_image/max(scaled_image(:));
@@ -555,17 +555,17 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
 %    scaled_image = abs(filter2(circle10, scaled_image));
 %    scaled_image = stand(scaled_image);
     red_image = scaled_image;
-    
+
     scaled_image = 3*dic_image+yfp_image+red_image;
 %    se = strel('disk', 5);
 %    scaled_image = imtophat(scaled_image, se);
     scaled_image = abs(filter2(circle10, scaled_image));
 %    scaled_image = abs(scaled_image-mean(scaled_image(:)));
-    
+
 %    mask = scaled_image;
 %    mask = edge(mask, 'roberts')+edge(mask, 'sobel')+edge(mask, 'prewitt')+edge(mask, 'log');
 %    mask = bwareaopen(mask > 0, 20);
-    
+
     % If it doesn't work the first time, throw more convex hulls at it.
 %    contour = edge(mask, 'canny');
 %    [v u] = find(mask > 0);
@@ -580,12 +580,12 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
 %    for l = 1:length(uu)
 %      mask(vv(l),uu(l)) = 1;
 %    end
-    
+
 %    figure;
 %    imagesc(mask);
-    
+
 %    mask = imfill(mask, 'holes');
-    
+
 %    ends = bwmorph(mask, 'endpoints');
 %    [v u] = find(ends > 0);
 %    for k = 1:length(u)
@@ -594,35 +594,35 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
 %    mask = imfill(mask, 'holes');
 %    mask = bwareaopen(mask, 70);
 %    mask = bwmorph(mask, 'dilate', 3);
-    
+
     % Method 1: threshold
     mask = threshold(scaled_image, 450);
-    
+
 %    figure;
 %    imagesc(dic_image);
-%    
+%
 %    figure;
 %    imagesc(yfp_image);
-%    
+%
 %    figure;
 %    imagesc(red_image);
-%    
+%
 %    figure;
 %    imagesc(mask.*scaled_image);
-%    
+%
 %    return
-    
+
     % Method 2: region growing
-    
+
 %    ends = bwmorph(mask, 'endpoints');
 %    [v u] = find(ends > 0);
 %    for k = 1:length(u)
 %      mask = localclose(mask, [u(k) v(k)], 30);
 %    end
 %    mask = bwmorph(mask, 'close');
-    
+
     pad = 10;
-    
+
 %    mask = bwareaopen(mask, 10);
 %    mask = bwmorph(mask, 'majority');
     mask = padarray(mask, [pad pad]);
@@ -636,10 +636,10 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
 %    mask = mask(1+pad:end-pad,1+pad:end-pad);
 %    mask = imfill(mask, 'holes');
 %    mask = bwmorph(mask, 'erode', 2);
-    
+
 %    figure;
 %    imagesc(mask);
-    
+
     retract = bwmorph(mask, 'thin', Inf);
     ends = bwmorph(retract, 'endpoints');
     [v u] = find(ends > 0);
@@ -662,7 +662,7 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
     retract = retract(1+pad:end-pad,1+pad:end-pad);
     ends = bwmorph(retract, 'endpoints');
     [v u] = find(ends > 0);
-    
+
     if length(u) ~= 2
       [u v]
       figure;
@@ -671,7 +671,7 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
       imagesc(retract);
     end
     assert(2 <= length(u));
-    
+
     % find the closest endpoints to the previous endpoint
     if j > 1
       close_dist = Inf;
@@ -687,17 +687,17 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
     else
       endpts = [endpts; u(1) v(1)];
     end
-    
+
     [normals extend poles] = KymoNormals(retract, endpts(j,:), mask, 15, 25, 5);
-    
+
     % DEBUG
 %    figure;
 %    imagesc(mask(1+pad:end-pad,1+pad:end-pad)+extend);
-    
+
 %    padding = 15;
-    
+
     num_pixels = length(normals);
-    
+
     full_image = double(imread(fullfile(Metadata.Directory, Metadata.YFPFiles(j).name), 'TIFF'));
     scaled_image = full_image(y:y+h-1,x:x+w-1);
     pixel_col = zeros(w+h, 1);
@@ -729,7 +729,7 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
     yfp_heads = [yfp_heads head];
     yfp_tails = [yfp_tails tail];
     yfp_lengths = [yfp_lengths tail-head+1];
-    
+
     full_image = double(imread(fullfile(Metadata.Directory, Metadata.RedFiles(j).name), 'TIFF'));
     scaled_image = full_image(y:y+h-1,x:x+w-1);
     pixel_col = zeros(w+h, 1);
@@ -761,25 +761,25 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
     red_heads = [red_heads head];
     red_tails = [red_tails tail];
     red_lengths = [red_lengths tail-head+1];
-    
+
     if (j/5 == round(j/5))
       fprintf(1, 'Completed: %f%%...\n', 100*j/Metadata.NumYFPFiles);
     end
-    
+
   end
-  
+
   yfp_length = min(yfp_lengths);
   red_length = min(red_lengths);
   target_length = min(yfp_length, red_length);
-  
+
 %  for depress = 8:2:24
 %    [new_yfp_map yfp_heads yfp_tails] = MapAlign(yfp_map, target_length-depress, yfp_heads, yfp_tails, Metadata.NumYFPFiles);
 %    [new_red_map red_heads red_tails] = MapAlign(red_map, target_length-depress, red_heads, red_tails, Metadata.NumRedFiles);
 %  end
-  
+
   [new_yfp_map yfp_heads yfp_tails] = MapAlign(yfp_map, target_length, yfp_heads, yfp_tails, Metadata.NumYFPFiles);
   [new_red_map red_heads red_tails] = MapAlign(red_map, target_length, red_heads, red_tails, Metadata.NumRedFiles);
-  
+
 %  full_image = double(imread(fullfile(Metadata.Directory, Metadata.YFPFiles(j).name), 'TIFF'));
 %  pixel_col = zeros(w+h, 1);
 %  yfp_pixel_map = [];
@@ -791,12 +791,12 @@ function [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap
 %    end
 %    yfp_pixel_map = [yfp_pixel_map pixel_col(heads(j):tails(j))];
 %  end
-  
+
 end
 
-% --- 
-% Performs post-correction on the unaligned kymograph columns. This is after 
-% the "raw" columns have been obtained, and we need to correct for the jitter 
+% ---
+% Performs post-correction on the unaligned kymograph columns. This is after
+% the "raw" columns have been obtained, and we need to correct for the jitter
 % inherent in using individual frames to produce the retract.
 function [new_pixel_map heads tails] = MapAlign(pixel_map, target_length, heads, tails, n)
   % jitter correction by cross correlation
@@ -850,7 +850,7 @@ function [new_pixel_map heads tails] = MapAlign(pixel_map, target_length, heads,
   end
 end
 
-% --- 
+% ---
 % Not currently used. A non-loop version of MapAlign for use within other loops.
 function [offset] = LinearAlign(old, new)
   if length(new) > length(old)
@@ -878,11 +878,11 @@ end
 
 %  Callbacks
 
-% --- 
+% ---
 function LoadStackButton_Callback(hObject, eventdata, handles)
   Metadata.Directory = uigetdir({}, 'Load Image Stack Directory...');
   if Metadata.Directory ~= 0
-    
+
     Metadata.YFPFiles = dir(strcat(Metadata.Directory, '/*_YFP.tif*'));
     Metadata.RedFiles = dir(strcat(Metadata.Directory, '/*_Red.tif*'));
     Metadata.DICFiles = dir(strcat(Metadata.Directory, '/*_DIC.tif*'));
@@ -890,21 +890,21 @@ function LoadStackButton_Callback(hObject, eventdata, handles)
     Metadata.NumRedFiles = length(Metadata.RedFiles);
     Metadata.NumDICFiles = length(Metadata.DICFiles);
     Metadata.DICStep = round(Metadata.NumDICFiles/Metadata.NumYFPFiles);
-    
+
     Metadata.DICOffset = 0;
-    
+
     Display.InputIndex = 1;
     set(GUI.Label_StackDir, 'String', Metadata.Directory);
     set(GUI.Label_YFPFrames, 'String', strcat('YFP Frames:', num2str(Metadata.NumYFPFiles)));
     set(GUI.Label_RedFrames, 'String', strcat('Red Frames:', num2str(Metadata.NumRedFiles)));
     set(GUI.Label_DICFrames, 'String', strcat('DIC Frames:', num2str(Metadata.NumDICFiles)));
-    
+
     UpdateStack();
     UpdateInputGraph();
   end
 end
 
-% --- 
+% ---
 function StackMenu_Callback(hObject, eventdata, handles)
   if Metadata.Directory ~= 0
     UpdateStack();
@@ -912,13 +912,13 @@ function StackMenu_Callback(hObject, eventdata, handles)
   end
 end
 
-% --- 
+% ---
 function InputSlider_Callback(hObject, eventdata, handles)
   Display.InputIndex = round(get(hObject, 'Value'));
   UpdateInputGraph();
 end
 
-% --- 
+% ---
 function OutputSlider_Callback(hObject, eventdata, handles)
   if ROI.N ~= 0
     Display.OutputIndex = round(get(hObject, 'Value'));
@@ -926,7 +926,7 @@ function OutputSlider_Callback(hObject, eventdata, handles)
   end
 end
 
-% --- 
+% ---
 function AverageButton_Callback(hObject, eventdata, handles)
   % Clear existing ROI fields
   ResetROI();
@@ -946,7 +946,7 @@ function AverageButton_Callback(hObject, eventdata, handles)
   UpdateField();
 end
 
-% --- 
+% ---
 function CropButton_Callback(hObject, eventdata, handles)
   UpdateOutputGraph(cell2mat(Display.ROI(1,1)));
   DisplayAllROIBorders();
@@ -1000,8 +1000,8 @@ function ThresholdButton_Callback(hObject, eventdata, handles)
   UpdateOutputGraph(cell2mat(Display.ROI(1,1)));
 end
 
-% --- 
-% Construct a kymograph only using the fluorescence images. Useful only for 
+% ---
+% Construct a kymograph only using the fluorescence images. Useful only for
 % stationary cells, for which this is very stable.
 function PixelMapButton_Callback(hObject, eventdata, handles)
   ROI.Contours = {};
@@ -1021,21 +1021,21 @@ function PixelMapButton_Callback(hObject, eventdata, handles)
     ROI.Contours = [ROI.Contours contour];
     ROI.Retracts = [ROI.Retracts retract];
     ROI.Ends = [ROI.Ends ends];
-    
+
     [normals extend poles] = KymoNormals(cell2mat(ROI.Retracts(1,i)), cell2mat(ROI.Ends(1,i)), cell2mat(ROI.Images(1,i)), Parameters.Normals1, 0, 0);
     ROI.Poles = [ROI.Poles poles];
     ROI.Extends = [ROI.Extends extend];
-    
+
     outline = max(cell2mat(ROI.Contours(1,i)), extend);
     Display.ROI = [Display.ROI outline];
-    
+
     num_pixels = length(normals);
     ROI.NumPixels = [ROI.NumPixels num_pixels];
     x = round(ROI.Rects(4*i-3));
     y = round(ROI.Rects(4*i-2));
     w = round(ROI.Rects(4*i-1));
     h = round(ROI.Rects(4*i));
-    
+
 %    pixel_map = [];
 %    for j = 1:Metadata.NumYFPFiles
 %      this_image = imread(fullfile(Metadata.Directory, Metadata.YFPFiles(j).name), 'TIFF');
@@ -1047,7 +1047,7 @@ function PixelMapButton_Callback(hObject, eventdata, handles)
 %    figure
 %    imagesc(pixel_map);
 %    title(strcat('YFP/GFP ROI', num2str(i)));
-    
+
     pixel_map = [];
     for j = 1:Metadata.NumYFPFiles
       this_image = double(imread(fullfile(Metadata.Directory, Metadata.YFPFiles(j).name), 'TIFF'));
@@ -1059,13 +1059,13 @@ function PixelMapButton_Callback(hObject, eventdata, handles)
       end
       pixel_map = [pixel_map pixel_col];
     end
-    
+
     temp = figure;
     imagesc(pixel_map);
     title(strcat('YFP/GFP Fluorescence ROI', num2str(i)));
     saveas(temp, fullfile(Metadata.Directory, strcat('yfp_fl_', num2str(i), '.png')), 'png');
     ROI.YFPPixelMap = [ROI.YFPPixelMap pixel_map];
-    
+
 %    pixel_map = [];
 %    for j = 1:Metadata.NumRedFiles
 %      this_image = imread(fullfile(Metadata.Directory, Metadata.RedFiles(j).name), 'TIFF');
@@ -1077,7 +1077,7 @@ function PixelMapButton_Callback(hObject, eventdata, handles)
 %    figure
 %    imagesc(pixel_map);
 %    title(strcat('Red/mCherry ROI', num2str(i)));
-    
+
     pixel_map = [];
     for j = 1:Metadata.NumRedFiles
       this_image = double(imread(fullfile(Metadata.Directory, Metadata.RedFiles(j).name), 'TIFF'));
@@ -1089,7 +1089,7 @@ function PixelMapButton_Callback(hObject, eventdata, handles)
       end
       pixel_map = [pixel_map pixel_col];
     end
-    
+
     temp = figure;
     imagesc(pixel_map);
     title(strcat('Red/mCherry Fluorescence ROI', num2str(i)));
@@ -1099,8 +1099,8 @@ function PixelMapButton_Callback(hObject, eventdata, handles)
   UpdateOutputGraph(cell2mat(Display.ROI(1,1)));
 end
 
-% --- 
-% Construct a kymograph using the fluorescence retract and the DIC as a 
+% ---
+% Construct a kymograph using the fluorescence retract and the DIC as a
 % cell position reference.
 function DICPixelMapButton_Callback(hObject, eventdata, handles)
 %  ROI.Contours = {};
@@ -1120,71 +1120,71 @@ function DICPixelMapButton_Callback(hObject, eventdata, handles)
     y = round(ROI.Rects(4*i-2));
     w = round(ROI.Rects(4*i-1));
     h = round(ROI.Rects(4*i));
-    
+
     fprintf(1, 'Starting DIC pixel map...\n');
     fprintf(1, 'Runtime estimate: %f s\n', round(sqrt(w^2+h^2)/225*Metadata.NumYFPFiles));
-    
+
     [contour retract ends] = KymoRetract(cell2mat(ROI.Images(1,i)));
     [normals extend poles] = KymoNormals(retract, ends, cell2mat(ROI.Images(1,i)), Parameters.Normals1, Parameters.Normals2, 0);
     [normals_ext extra1 extra2] = KymoNormals(retract, ends, ones(h,w), Parameters.Normals1, Parameters.Normals2, Parameters.Normals2);
-    
+
     [v u] = find(extend > 0);
     all_pixels = length(u);
-    
+
     % TODO show ROI bounding box motion (impoly)
-    
+
     pixel_map = [];
     [pixel_map heads tails] = DICCCNormals(extend, normals, normals_ext, x, y, w, h, Metadata.NumYFPFiles, Metadata.YFPFiles);
-    
+
     temp = figure;
     imagesc(pixel_map); %(max_head_t:min_tail_t,:)
     title(strcat('YFP/GFP DIC ROI', num2str(i)));
     saveas(temp, fullfile(Metadata.Directory, strcat('yfp_dic_', num2str(i), '.png')), 'png');
-    
+
     ROI.YFPDICMap = [ROI.YFPDICMap pixel_map];
     ROI.YFPDICEnds = [ROI.YFPDICEnds [heads; tails]];
-    
+
     pixel_map = [];
     [pixel_map heads tails] = DICCCNormals(extend, normals, normals_ext, x, y, w, h, Metadata.NumRedFiles, Metadata.RedFiles);
-    
+
     temp = figure;
     imagesc(pixel_map); %(max_head_t:min_tail_t,:)
     title(strcat('Red/mCherry DIC ROI', num2str(i)));
     saveas(temp, fullfile(Metadata.Directory, strcat('red_dic_', num2str(i), '.png')), 'png');
-    
+
     ROI.RedDICMap = [ROI.RedDICMap pixel_map];
     ROI.RedDICEnds = [ROI.RedDICEnds [heads; tails]];
-    
+
     fprintf(1, 'Done.\n');
-    
+
 %    [savefile savepath] = uiputfile();
 %    savefile, savepath
 %    save(fullfile(savepath, savefile), 'masks');
   end
 end
 
-% --- 
-% Constructs a kymograph solely using DIC images to reference cell position and 
+% ---
+% Constructs a kymograph solely using DIC images to reference cell position and
 % the shape of the retract.
 function DICFrameMap_Callback(hObject, eventdata, handles)
   % Find framewise retracts of a cell using correlation and edge detection
   for i = 1:ROI.N
-    
+
     x = round(ROI.Rects(4*i-3));
     y = round(ROI.Rects(4*i-2));
     w = round(ROI.Rects(4*i-1));
     h = round(ROI.Rects(4*i));
-    
+
     assert(Metadata.NumYFPFiles == Metadata.NumRedFiles);
     fprintf(1, 'Starting DIC framewise map...\n');
     fprintf(1, 'Runtime estimate: %f s\n', round(sqrt(w^2+h^2)/130*Metadata.NumYFPFiles));
     tic;
-    
+
     [yfp_map red_map yfp_heads yfp_tails red_heads red_tails] = DICFrameMap(x, y, w, h);
-    
+
     heads = round((yfp_heads+red_heads)/2);
     tails = round((yfp_tails+red_tails)/2);
-    
+
 %    pixel_map = yfp_map;
     pixel_map = [];
     for j = 1:length(yfp_tails)
@@ -1193,7 +1193,7 @@ function DICFrameMap_Callback(hObject, eventdata, handles)
     figure;
     imagesc(pixel_map);
     title(strcat('YFP/GFP DIC/YFP ROI', num2str(i)));
-    
+
 %    pixel_map = [];
 %    for j = 1:length(yfp_tails)
 %      pixel_map = [pixel_map red_map(yfp_heads(j):yfp_tails(j),j)];
@@ -1201,7 +1201,7 @@ function DICFrameMap_Callback(hObject, eventdata, handles)
 %    figure;
 %    imagesc(pixel_map);
 %    title(strcat('Red/mCherry DIC/YFP ROI', num2str(i)));
-%    
+%
 %    pixel_map = [];
 %    for j = 1:length(red_tails)
 %      pixel_map = [pixel_map yfp_map(red_heads(j):red_tails(j),j)];
@@ -1209,7 +1209,7 @@ function DICFrameMap_Callback(hObject, eventdata, handles)
 %    figure;
 %    imagesc(pixel_map);
 %    title(strcat('YFP/GFP DIC/Red ROI', num2str(i)));
-    
+
 %    pixel_map = red_map;
     pixel_map = [];
     for j = 1:length(red_tails)
@@ -1218,7 +1218,7 @@ function DICFrameMap_Callback(hObject, eventdata, handles)
     figure;
     imagesc(pixel_map);
     title(strcat('Red/mCherry DIC/Red ROI', num2str(i)));
-    
+
 %    pixel_map = [];
 %    for j = 1:length(heads)
 %      pixel_map = [pixel_map yfp_map(heads(j):tails(j),j)];
@@ -1226,7 +1226,7 @@ function DICFrameMap_Callback(hObject, eventdata, handles)
 %    figure;
 %    imagesc(pixel_map);
 %    title(strcat('YFP/GFP DIC/mean ROI', num2str(i)));
-%    
+%
 %    pixel_map = [];
 %    for j = 1:length(heads)
 %      pixel_map = [pixel_map red_map(heads(j):tails(j),j)];
@@ -1234,14 +1234,14 @@ function DICFrameMap_Callback(hObject, eventdata, handles)
 %    figure;
 %    imagesc(pixel_map);
 %    title(strcat('Red/mCherry DIC/mean ROI', num2str(i)));
-    
+
     fprintf(1, 'Done.\n');
     toc;
-    
+
   end
 end
 
-% --- 
+% ---
 function SaveButton_Callback(hObject, eventdata, handles)
   [savefile savepath] = uiputfile();
   savefile, savepath
@@ -1326,13 +1326,13 @@ function SaveButton_Callback(hObject, eventdata, handles)
   fclose(readme);
 end
 
-% --- 
+% ---
 function UndockInputButton_Callback(hObject, eventdata, handles)
   figure;
   imagesc(Display.InputImage);
 end
 
-% --- 
+% ---
 function UndockOutputButton_Callback(hObject, eventdata, handles)
   figure;
   imagesc(Display.OutputImage);
